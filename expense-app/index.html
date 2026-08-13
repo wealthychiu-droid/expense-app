@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0f6e56" />
+<title>記帳</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="記帳" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <h1 class="app-title">記帳</h1>
+  <div class="sync-indicator" id="syncIndicator" title="尚未連線 Google Drive">
+    <i class="icon">☁</i><span id="syncStatusText">離線</span>
+  </div>
+</header>
+
+<main id="app">
+
+  <!-- 記帳畫面 -->
+  <section id="pane-entry" class="pane active">
+    <div class="month-summary" id="monthSummary">本月支出 $0</div>
+
+    <div class="type-toggle">
+      <button type="button" class="type-btn active" data-type="expense">支出</button>
+      <button type="button" class="type-btn" data-type="income">收入</button>
+    </div>
+
+    <div class="amount-box">
+      <span class="amount-label">金額</span>
+      <input type="number" inputmode="decimal" id="amountInput" class="amount-input" placeholder="0" min="0" step="1" />
+    </div>
+
+    <div class="field-block">
+      <div class="field-label">分類</div>
+      <div class="chip-grid" id="categoryGrid"></div>
+    </div>
+
+    <div class="field-block">
+      <div class="field-label">對象（可複選）</div>
+      <div class="chip-row" id="recipientRow"></div>
+    </div>
+
+    <div class="field-row">
+      <select id="accountSelect" class="field-select"></select>
+      <input type="date" id="dateInput" class="field-date" />
+    </div>
+
+    <div class="field-block">
+      <input type="text" id="merchantInput" class="text-input" placeholder="商家（選填）" list="merchantList" />
+      <datalist id="merchantList"></datalist>
+    </div>
+
+    <div class="field-block">
+      <input type="text" id="itemNameInput" class="text-input" placeholder="項目名稱（選填）" />
+    </div>
+
+    <div class="field-block">
+      <input type="text" id="noteInput" class="text-input" placeholder="備註（選填）" />
+    </div>
+
+    <button type="button" id="saveBtn" class="save-btn">儲存</button>
+    <div class="save-toast" id="saveToast">已儲存</div>
+  </section>
+
+  <!-- 歷史畫面 -->
+  <section id="pane-history" class="pane">
+    <div id="historyList" class="history-list"></div>
+    <div id="historyEmpty" class="empty-state" hidden>還沒有任何紀錄</div>
+  </section>
+
+  <!-- 分析畫面（預留） -->
+  <section id="pane-analysis" class="pane">
+    <div class="empty-state">分析功能之後會加在這裡<br /><span class="empty-sub">目前資料已同步到 Google Drive，可以先用 Sheets 分析</span></div>
+  </section>
+
+  <!-- 設定畫面 -->
+  <section id="pane-settings" class="pane">
+    <div class="settings-group">
+      <h2 class="settings-title">分類管理</h2>
+      <div id="categoryManager" class="manager-list"></div>
+      <div class="add-row">
+        <input type="text" id="newCategoryInput" class="text-input" placeholder="新增分類名稱" />
+        <button type="button" id="addCategoryBtn" class="add-btn">新增</button>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <h2 class="settings-title">帳戶管理</h2>
+      <div id="accountManager" class="manager-list"></div>
+      <div class="add-row">
+        <input type="text" id="newAccountInput" class="text-input" placeholder="新增帳戶名稱" />
+        <button type="button" id="addAccountBtn" class="add-btn">新增</button>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <h2 class="settings-title">對象管理</h2>
+      <div id="recipientManager" class="manager-list"></div>
+      <div class="add-row">
+        <input type="text" id="newRecipientInput" class="text-input" placeholder="新增對象名稱" />
+        <button type="button" id="addRecipientBtn" class="add-btn">新增</button>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <h2 class="settings-title">雲端同步</h2>
+      <div class="drive-status">
+        <span id="driveStatusBadge" class="badge badge-muted">尚未設定</span>
+        <span id="driveLastSync" class="drive-last-sync"></span>
+      </div>
+      <button type="button" id="driveConnectBtn" class="add-btn" disabled>連接 Google Drive（下一階段開放）</button>
+    </div>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button type="button" class="tab-btn active" data-tab="entry"><i class="icon">＋</i><span>記帳</span></button>
+  <button type="button" class="tab-btn" data-tab="history"><i class="icon">≡</i><span>歷史</span></button>
+  <button type="button" class="tab-btn" data-tab="analysis"><i class="icon">▤</i><span>分析</span></button>
+  <button type="button" class="tab-btn" data-tab="settings"><i class="icon">⚙</i><span>設定</span></button>
+</nav>
+
+<script src="js/db.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
