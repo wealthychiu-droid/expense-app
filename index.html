@@ -120,7 +120,6 @@
     <div class="type-toggle" id="sheetTypeToggle">
       <button type="button" class="type-btn active" data-type="expense">支出</button>
       <button type="button" class="type-btn" data-type="income">收入</button>
-      <button type="button" class="type-btn" data-type="transfer">轉帳</button>
     </div>
   </div>
 
@@ -146,22 +145,6 @@
     <div class="field-row" id="accountRow">
       <select id="accountSelect" class="field-select"></select>
       <input type="date" id="dateInput" class="field-date" />
-    </div>
-
-    <!-- 轉帳 專用：轉出/轉入帳戶 -->
-    <div class="field-block" id="transferBlock" hidden>
-      <div class="field-row">
-        <div class="transfer-col">
-          <div class="field-label">從</div>
-          <select id="fromAccountSelect" class="field-select"></select>
-        </div>
-        <div class="transfer-arrow">→</div>
-        <div class="transfer-col">
-          <div class="field-label">到</div>
-          <select id="toAccountSelect" class="field-select"></select>
-        </div>
-      </div>
-      <input type="date" id="transferDateInput" class="field-date" style="margin-top:8px;" />
     </div>
 
     <!-- 支出 專用選填欄位 -->

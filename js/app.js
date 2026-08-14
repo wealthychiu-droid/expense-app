@@ -53,21 +53,14 @@ function openSheet(editTxn) {
   renderCategoryGrid();
   renderRecipientRow();
   renderAccountSelect();
-  renderTransferAccountSelects();
 
   if (editTxn) {
     $('#amountInput').value = editTxn.amount;
     $('#merchantInput').value = editTxn.merchant || '';
     $('#itemNameInput').value = editTxn.itemName || '';
     $('#noteInput').value = editTxn.note || '';
-    if (editTxn.type === 'transfer') {
-      $('#fromAccountSelect').value = editTxn.fromAccountId || '';
-      $('#toAccountSelect').value = editTxn.toAccountId || '';
-      $('#transferDateInput').value = editTxn.date || todayStr();
-    } else {
-      $('#accountSelect').value = editTxn.accountId || '';
-      $('#dateInput').value = editTxn.date || todayStr();
-    }
+    $('#accountSelect').value = editTxn.accountId || '';
+    $('#dateInput').value = editTxn.date || todayStr();
     $('#deleteBtn').hidden = false;
   } else {
     $('#amountInput').value = '';
@@ -75,7 +68,6 @@ function openSheet(editTxn) {
     $('#itemNameInput').value = '';
     $('#noteInput').value = '';
     $('#dateInput').value = todayStr();
-    $('#transferDateInput').value = todayStr();
     resetRecipientDefault();
     renderRecipientRow();
     renderAccountSelect();
@@ -99,13 +91,9 @@ function setSheetTypeButtons(type) {
 
 function updateSheetFieldVisibility() {
   const t = state.sheetType;
-  $('#categoryBlock').hidden = t === 'transfer';
   $('#recipientBlock').hidden = t !== 'expense';
-  $('#accountRow').hidden = t === 'transfer';
-  $('#transferBlock').hidden = t !== 'transfer';
   $('#merchantBlock').hidden = t !== 'expense';
   $('#itemNameBlock').hidden = t !== 'expense';
-  $('#noteBlock').hidden = false;
 }
 
 function initSheetTypeToggle() {
@@ -124,7 +112,6 @@ function initSheetTypeToggle() {
 function renderCategoryGrid() {
   const grid = $('#categoryGrid');
   grid.innerHTML = '';
-  if (state.sheetType === 'transfer') return;
 
   const list = state.categories
     .filter((c) => c.type === state.sheetType)
@@ -188,29 +175,6 @@ function renderAccountSelect() {
   else if (defaultAcc) sel.value = defaultAcc.id;
 }
 
-function renderTransferAccountSelects() {
-  ['#fromAccountSelect', '#toAccountSelect'].forEach((selId) => {
-    const sel = $(selId);
-    const prevValue = sel.value;
-    sel.innerHTML = '';
-    state.accounts
-      .slice()
-      .sort((a, b) => a.order - b.order)
-      .forEach((a) => {
-        const opt = document.createElement('option');
-        opt.value = a.id;
-        opt.textContent = a.name;
-        sel.appendChild(opt);
-      });
-    if (prevValue && state.accounts.some((a) => a.id === prevValue)) sel.value = prevValue;
-  });
-  // default "to" to the second account if available, to avoid from===to by default
-  if (state.accounts.length > 1 && $('#toAccountSelect').value === $('#fromAccountSelect').value) {
-    const other = state.accounts.find((a) => a.id !== $('#fromAccountSelect').value);
-    if (other) $('#toAccountSelect').value = other.id;
-  }
-}
-
 function resetRecipientDefault() {
   const defaultR = state.recipients.find((r) => r.isDefault);
   state.selectedRecipientIds = defaultR ? [defaultR.id] : [];
@@ -233,7 +197,7 @@ async function updateMonthSummary() {
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   let expense = 0, income = 0;
   txns.forEach((t) => {
-    if (t.isDeleted || t.type === 'transfer') return;
+    if (t.isDeleted) return;
     if (!t.date || !t.date.startsWith(ym)) return;
     if (t.type === 'expense') expense += t.amount;
     if (t.type === 'income') income += t.amount;
@@ -253,36 +217,19 @@ async function handleSave() {
 
   const isNew = !state.editingId;
   const id = state.editingId || DB.uuid();
-  let txn;
+  if (!state.selectedCategoryId) return;
 
-  if (state.sheetType === 'transfer') {
-    const fromAccountId = $('#fromAccountSelect').value;
-    const toAccountId = $('#toAccountSelect').value;
-    if (!fromAccountId || !toAccountId || fromAccountId === toAccountId) {
-      alert('請選擇兩個不同的帳戶');
-      return;
-    }
-    txn = {
-      id, type: 'transfer', amount,
-      fromAccountId, toAccountId,
-      note: $('#noteInput').value.trim(),
-      date: $('#transferDateInput').value || todayStr(),
-      updatedAt: Date.now(), deviceId: DB.deviceId(), isDeleted: false,
-    };
-  } else {
-    if (!state.selectedCategoryId) return;
-    txn = {
-      id, type: state.sheetType, amount,
-      categoryId: state.selectedCategoryId,
-      recipientIds: state.sheetType === 'expense' ? state.selectedRecipientIds.slice() : [],
-      accountId: $('#accountSelect').value,
-      merchant: state.sheetType === 'expense' ? $('#merchantInput').value.trim() : '',
-      itemName: state.sheetType === 'expense' ? $('#itemNameInput').value.trim() : '',
-      note: $('#noteInput').value.trim(),
-      date: $('#dateInput').value || todayStr(),
-      updatedAt: Date.now(), deviceId: DB.deviceId(), isDeleted: false,
-    };
-  }
+  const txn = {
+    id, type: state.sheetType, amount,
+    categoryId: state.selectedCategoryId,
+    recipientIds: state.sheetType === 'expense' ? state.selectedRecipientIds.slice() : [],
+    accountId: $('#accountSelect').value,
+    merchant: state.sheetType === 'expense' ? $('#merchantInput').value.trim() : '',
+    itemName: state.sheetType === 'expense' ? $('#itemNameInput').value.trim() : '',
+    note: $('#noteInput').value.trim(),
+    date: $('#dateInput').value || todayStr(),
+    updatedAt: Date.now(), deviceId: DB.deviceId(), isDeleted: false,
+  };
 
   await DB.put('transactions', txn);
   await refreshMerchantList();
@@ -351,36 +298,21 @@ async function renderHistory() {
     const row = document.createElement('div');
     row.className = 'history-row';
 
-    if (t.type === 'transfer') {
-      const fromAcc = accMap[t.fromAccountId];
-      const toAcc = accMap[t.toAccountId];
-      row.innerHTML = `
-        <div class="history-row-left">
-          <div class="history-row-icon transfer">⇄</div>
-          <div>
-            <div class="history-row-title">轉帳</div>
-            <div class="history-row-sub">${escapeHtml((fromAcc ? fromAcc.name : '') + ' → ' + (toAcc ? toAcc.name : ''))}</div>
-          </div>
+    const cat = catMap[t.categoryId];
+    const acc = accMap[t.accountId];
+    const recipientNames = (t.recipientIds || []).map((id) => recMap[id] && recMap[id].name).filter(Boolean).join('、');
+    const title = t.itemName || (cat ? cat.name : '');
+    const subParts = [acc ? acc.name : '', recipientNames, t.merchant].filter(Boolean);
+    row.innerHTML = `
+      <div class="history-row-left">
+        <div class="history-row-icon">${cat ? cat.name.charAt(0) : '?'}</div>
+        <div>
+          <div class="history-row-title">${escapeHtml(title)}</div>
+          <div class="history-row-sub">${escapeHtml(subParts.join(' · '))}</div>
         </div>
-        <div class="history-row-amount transfer">${fmtMoney(t.amount)}</div>
-      `;
-    } else {
-      const cat = catMap[t.categoryId];
-      const acc = accMap[t.accountId];
-      const recipientNames = (t.recipientIds || []).map((id) => recMap[id] && recMap[id].name).filter(Boolean).join('、');
-      const title = t.itemName || (cat ? cat.name : '');
-      const subParts = [acc ? acc.name : '', recipientNames, t.merchant].filter(Boolean);
-      row.innerHTML = `
-        <div class="history-row-left">
-          <div class="history-row-icon">${cat ? cat.name.charAt(0) : '?'}</div>
-          <div>
-            <div class="history-row-title">${escapeHtml(title)}</div>
-            <div class="history-row-sub">${escapeHtml(subParts.join(' · '))}</div>
-          </div>
-        </div>
-        <div class="history-row-amount ${t.type}">${t.type === 'expense' ? '-' : '+'}${fmtMoney(t.amount)}</div>
-      `;
-    }
+      </div>
+      <div class="history-row-amount ${t.type}">${t.type === 'expense' ? '-' : '+'}${fmtMoney(t.amount)}</div>
+    `;
 
     row.addEventListener('click', () => openSheet(t));
     list.appendChild(row);
