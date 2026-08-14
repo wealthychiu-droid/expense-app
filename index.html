@@ -23,56 +23,29 @@
 
 <main id="app">
 
-  <!-- 記帳畫面 -->
-  <section id="pane-entry" class="pane active">
-    <div class="month-summary" id="monthSummary">本月支出 $0</div>
-
-    <div class="type-toggle">
-      <button type="button" class="type-btn active" data-type="expense">支出</button>
-      <button type="button" class="type-btn" data-type="income">收入</button>
+  <!-- 首頁：本月摘要 + 動態牆歷史列表 -->
+  <section id="pane-home" class="pane active">
+    <div class="summary-card">
+      <div class="summary-row">
+        <div class="summary-col">
+          <span class="summary-label">結餘</span>
+          <span class="summary-value" id="sumBalance">$0</span>
+        </div>
+      </div>
+      <div class="summary-row summary-row-sub">
+        <div class="summary-col">
+          <span class="summary-label">支出</span>
+          <span class="summary-value summary-expense" id="sumExpense">$0</span>
+        </div>
+        <div class="summary-col">
+          <span class="summary-label">收入</span>
+          <span class="summary-value summary-income" id="sumIncome">$0</span>
+        </div>
+      </div>
     </div>
 
-    <div class="amount-box">
-      <span class="amount-label">金額</span>
-      <input type="number" inputmode="decimal" id="amountInput" class="amount-input" placeholder="0" min="0" step="1" />
-    </div>
-
-    <div class="field-block">
-      <div class="field-label">分類</div>
-      <div class="chip-grid" id="categoryGrid"></div>
-    </div>
-
-    <div class="field-block">
-      <div class="field-label">對象（可複選）</div>
-      <div class="chip-row" id="recipientRow"></div>
-    </div>
-
-    <div class="field-row">
-      <select id="accountSelect" class="field-select"></select>
-      <input type="date" id="dateInput" class="field-date" />
-    </div>
-
-    <div class="field-block">
-      <input type="text" id="merchantInput" class="text-input" placeholder="商家（選填）" list="merchantList" />
-      <datalist id="merchantList"></datalist>
-    </div>
-
-    <div class="field-block">
-      <input type="text" id="itemNameInput" class="text-input" placeholder="項目名稱（選填）" />
-    </div>
-
-    <div class="field-block">
-      <input type="text" id="noteInput" class="text-input" placeholder="備註（選填）" />
-    </div>
-
-    <button type="button" id="saveBtn" class="save-btn">儲存</button>
-    <div class="save-toast" id="saveToast">已儲存</div>
-  </section>
-
-  <!-- 歷史畫面 -->
-  <section id="pane-history" class="pane">
     <div id="historyList" class="history-list"></div>
-    <div id="historyEmpty" class="empty-state" hidden>還沒有任何紀錄</div>
+    <div id="historyEmpty" class="empty-state" hidden>還沒有任何紀錄，點右下角「＋」開始記帳</div>
   </section>
 
   <!-- 分析畫面（預留） -->
@@ -83,11 +56,20 @@
   <!-- 設定畫面 -->
   <section id="pane-settings" class="pane">
     <div class="settings-group">
-      <h2 class="settings-title">分類管理</h2>
-      <div id="categoryManager" class="manager-list"></div>
+      <h2 class="settings-title">支出分類</h2>
+      <div id="expenseCategoryManager" class="manager-list"></div>
       <div class="add-row">
-        <input type="text" id="newCategoryInput" class="text-input" placeholder="新增分類名稱" />
-        <button type="button" id="addCategoryBtn" class="add-btn">新增</button>
+        <input type="text" id="newExpenseCategoryInput" class="text-input" placeholder="新增支出分類" />
+        <button type="button" id="addExpenseCategoryBtn" class="add-btn">新增</button>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <h2 class="settings-title">收入分類</h2>
+      <div id="incomeCategoryManager" class="manager-list"></div>
+      <div class="add-row">
+        <input type="text" id="newIncomeCategoryInput" class="text-input" placeholder="新增收入分類" />
+        <button type="button" id="addIncomeCategoryBtn" class="add-btn">新增</button>
       </div>
     </div>
 
@@ -121,12 +103,84 @@
 
 </main>
 
+<button type="button" id="fabAdd" class="fab" aria-label="新增紀錄">＋</button>
+
 <nav class="tabbar">
-  <button type="button" class="tab-btn active" data-tab="entry"><i class="icon">＋</i><span>記帳</span></button>
-  <button type="button" class="tab-btn" data-tab="history"><i class="icon">≡</i><span>歷史</span></button>
+  <button type="button" class="tab-btn active" data-tab="home"><i class="icon">⌂</i><span>首頁</span></button>
   <button type="button" class="tab-btn" data-tab="analysis"><i class="icon">▤</i><span>分析</span></button>
   <button type="button" class="tab-btn" data-tab="settings"><i class="icon">⚙</i><span>設定</span></button>
 </nav>
+
+<!-- 底部彈出記帳／編輯面板 -->
+<div id="sheetBackdrop" class="sheet-backdrop" hidden></div>
+<div id="entrySheet" class="entry-sheet" hidden>
+  <div class="sheet-handle"></div>
+
+  <div class="sheet-header">
+    <div class="type-toggle" id="sheetTypeToggle">
+      <button type="button" class="type-btn active" data-type="expense">支出</button>
+      <button type="button" class="type-btn" data-type="income">收入</button>
+      <button type="button" class="type-btn" data-type="transfer">轉帳</button>
+    </div>
+  </div>
+
+  <div class="sheet-body">
+    <div class="amount-box">
+      <span class="amount-label">金額</span>
+      <input type="number" inputmode="decimal" id="amountInput" class="amount-input" placeholder="0" min="0" step="1" />
+    </div>
+
+    <!-- 支出/收入 用：分類 -->
+    <div class="field-block" id="categoryBlock">
+      <div class="field-label">分類</div>
+      <div class="chip-grid" id="categoryGrid"></div>
+    </div>
+
+    <!-- 支出 專用：對象 -->
+    <div class="field-block" id="recipientBlock">
+      <div class="field-label">對象（可複選）</div>
+      <div class="chip-row" id="recipientRow"></div>
+    </div>
+
+    <!-- 支出/收入 用：帳戶 -->
+    <div class="field-row" id="accountRow">
+      <select id="accountSelect" class="field-select"></select>
+      <input type="date" id="dateInput" class="field-date" />
+    </div>
+
+    <!-- 轉帳 專用：轉出/轉入帳戶 -->
+    <div class="field-block" id="transferBlock" hidden>
+      <div class="field-row">
+        <div class="transfer-col">
+          <div class="field-label">從</div>
+          <select id="fromAccountSelect" class="field-select"></select>
+        </div>
+        <div class="transfer-arrow">→</div>
+        <div class="transfer-col">
+          <div class="field-label">到</div>
+          <select id="toAccountSelect" class="field-select"></select>
+        </div>
+      </div>
+      <input type="date" id="transferDateInput" class="field-date" style="margin-top:8px;" />
+    </div>
+
+    <!-- 支出 專用選填欄位 -->
+    <div class="field-block" id="merchantBlock">
+      <input type="text" id="merchantInput" class="text-input" placeholder="商家（選填）" list="merchantList" />
+      <datalist id="merchantList"></datalist>
+    </div>
+    <div class="field-block" id="itemNameBlock">
+      <input type="text" id="itemNameInput" class="text-input" placeholder="項目名稱（選填）" />
+    </div>
+    <div class="field-block" id="noteBlock">
+      <input type="text" id="noteInput" class="text-input" placeholder="備註（選填）" />
+    </div>
+
+    <button type="button" id="saveBtn" class="save-btn">儲存</button>
+    <button type="button" id="deleteBtn" class="delete-entry-btn" hidden>刪除這筆</button>
+    <div class="save-toast" id="saveToast">已儲存</div>
+  </div>
+</div>
 
 <script src="js/db.js"></script>
 <script src="js/app.js"></script>

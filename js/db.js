@@ -84,17 +84,32 @@ const DB = {
     return id;
   },
   async seedDefaults() {
-    const [categories, accounts, recipients] = await Promise.all([
-      DB.getAll('categories'),
-      DB.getAll('accounts'),
-      DB.getAll('recipients'),
-    ]);
+    let categories = await DB.getAll('categories');
+    const accounts = await DB.getAll('accounts');
+    const recipients = await DB.getAll('recipients');
+
+    // Migration: older records may not have a `type` field yet — treat them as expense.
+    for (const cat of categories) {
+      if (cat.type !== 'expense' && cat.type !== 'income') {
+        cat.type = 'expense';
+        await DB.put('categories', cat);
+      }
+    }
+
     if (categories.length === 0) {
       const defaults = ['餐飲', '交通', '購物', '居家', '娛樂', '其他'];
       for (let i = 0; i < defaults.length; i++) {
-        await DB.put('categories', { id: DB.uuid(), name: defaults[i], order: i, isDefault: false });
+        await DB.put('categories', { id: DB.uuid(), name: defaults[i], order: i, type: 'expense', isDefault: false });
       }
     }
+    const hasIncomeCategory = categories.some((c) => c.type === 'income');
+    if (!hasIncomeCategory) {
+      const incomeDefaults = ['薪資', '退款', '其他收入'];
+      for (let i = 0; i < incomeDefaults.length; i++) {
+        await DB.put('categories', { id: DB.uuid(), name: incomeDefaults[i], order: i, type: 'income', isDefault: false });
+      }
+    }
+
     if (accounts.length === 0) {
       await DB.put('accounts', { id: DB.uuid(), name: '現金', order: 0, isDefault: true });
     }

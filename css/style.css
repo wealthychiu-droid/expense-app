@@ -5,6 +5,8 @@
   --danger-bg: #fcebeb;
   --success: #3b6d11;
   --success-bg: #eaf3de;
+  --neutral: #6b6558;
+  --neutral-bg: #ede9de;
   --text-primary: #222220;
   --text-secondary: #5f5e5a;
   --text-muted: #8a8983;
@@ -62,17 +64,68 @@ button, input, select {
 .pane { display: none; }
 .pane.active { display: block; }
 
-.month-summary {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin-bottom: 12px;
-}
-
-.type-toggle {
-  display: flex;
-  gap: 8px;
+/* ---- Home summary card ---- */
+.summary-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
   margin-bottom: 16px;
 }
+.summary-row { display: flex; }
+.summary-row-sub { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.summary-col { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.summary-label { font-size: 12px; color: var(--text-muted); }
+.summary-value { font-size: 24px; font-weight: 600; }
+.summary-row-sub .summary-value { font-size: 17px; font-weight: 600; }
+.summary-expense { color: var(--danger); }
+.summary-income { color: var(--success); }
+
+/* ---- FAB ---- */
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(76px + var(--safe-bottom));
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-size: 26px;
+  line-height: 1;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.22);
+  z-index: 15;
+}
+.fab:active { opacity: 0.85; }
+
+/* ---- Bottom sheet ---- */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 20;
+}
+.entry-sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--surface-1);
+  border-radius: 18px 18px 0 0;
+  z-index: 21;
+  padding: 8px 16px calc(24px + var(--safe-bottom));
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+}
+.sheet-handle {
+  width: 40px; height: 4px;
+  background: var(--border);
+  border-radius: 999px;
+  margin: 8px auto 12px;
+}
+.sheet-header { margin-bottom: 12px; }
+
+.type-toggle { display: flex; gap: 8px; }
 .type-btn {
   flex: 1;
   padding: 10px;
@@ -82,12 +135,9 @@ button, input, select {
   background: var(--surface-1);
   color: var(--text-secondary);
 }
-.type-btn.active[data-type="expense"] {
-  background: var(--danger-bg); color: var(--danger); border-color: var(--danger-bg);
-}
-.type-btn.active[data-type="income"] {
-  background: var(--success-bg); color: var(--success); border-color: var(--success-bg);
-}
+.type-btn.active[data-type="expense"] { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-bg); }
+.type-btn.active[data-type="income"] { background: var(--success-bg); color: var(--success); border-color: var(--success-bg); }
+.type-btn.active[data-type="transfer"] { background: var(--neutral-bg); color: var(--neutral); border-color: var(--neutral-bg); }
 
 .amount-box {
   text-align: center;
@@ -164,7 +214,7 @@ button, input, select {
   border-color: var(--accent-bg);
 }
 
-.field-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.field-row { display: flex; gap: 8px; margin-bottom: 16px; align-items: flex-end; }
 .field-select, .field-date, .text-input {
   flex: 1;
   padding: 10px 12px;
@@ -175,6 +225,8 @@ button, input, select {
   color: var(--text-primary);
   width: 100%;
 }
+.transfer-col { flex: 1; }
+.transfer-arrow { padding-bottom: 10px; font-size: 16px; color: var(--text-muted); }
 
 .save-btn {
   width: 100%;
@@ -188,6 +240,17 @@ button, input, select {
 }
 .save-btn:active { opacity: 0.85; }
 
+.delete-entry-btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 14px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: none;
+  border-radius: var(--radius);
+  margin-top: 10px;
+}
+
 .save-toast {
   text-align: center;
   font-size: 13px;
@@ -198,7 +261,7 @@ button, input, select {
 }
 .save-toast.show { opacity: 1; }
 
-/* history */
+/* history feed */
 .history-list { display: flex; flex-direction: column; gap: 0; }
 .history-date-label {
   font-size: 12px;
@@ -212,20 +275,22 @@ button, input, select {
   justify-content: space-between;
   padding: 10px 0;
   border-bottom: 1px solid var(--border);
+  cursor: pointer;
 }
-.history-row-left { display: flex; align-items: center; gap: 10px; }
+.history-row-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .history-row-icon {
   width: 34px; height: 34px; border-radius: 10px;
   background: var(--surface-1); border: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center;
   font-size: 15px; color: var(--text-secondary); flex-shrink: 0;
 }
-.history-row-title { font-size: 14px; color: var(--text-primary); }
-.history-row-sub { font-size: 12px; color: var(--text-muted); }
-.history-row-amount { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.history-row-icon.transfer { color: var(--neutral); }
+.history-row-title { font-size: 14px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-row-sub { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-row-amount { font-size: 14px; font-weight: 600; white-space: nowrap; flex-shrink: 0; margin-left: 8px; }
 .history-row-amount.expense { color: var(--danger); }
 .history-row-amount.income { color: var(--success); }
-.history-row { cursor: pointer; }
+.history-row-amount.transfer { color: var(--neutral); }
 
 .empty-state {
   text-align: center;
@@ -243,13 +308,23 @@ button, input, select {
 .manager-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 8px 10px;
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
-.manager-row-name { flex: 1; font-size: 14px; }
+.reorder-btns { display: flex; flex-direction: column; }
+.reorder-btn {
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+}
+.reorder-btn:disabled { opacity: 0.25; }
+.manager-row-name { flex: 1; font-size: 14px; min-width: 0; }
 .manager-row-name[contenteditable="true"] { outline: none; border-bottom: 1px dashed var(--border); }
 .default-btn {
   font-size: 11px;
@@ -258,6 +333,7 @@ button, input, select {
   border: 1px solid var(--border);
   background: var(--surface-0);
   color: var(--text-muted);
+  white-space: nowrap;
 }
 .default-btn.is-default { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-bg); }
 .delete-btn {
@@ -312,22 +388,12 @@ button, input, select {
 /* ---- Tablet / landscape enhancements ---- */
 @media (min-width: 700px) {
   #app { max-width: 900px; padding-left: 24px; padding-right: 24px; }
-
-  #pane-entry.active {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0 32px;
-    align-items: start;
-  }
-  #pane-entry .month-summary,
-  #pane-entry .type-toggle,
-  #pane-entry .amount-box { grid-column: 1 / -1; }
-
-  .chip-grid { grid-template-columns: repeat(6, 1fr); }
-
   .history-list { max-width: 640px; }
+  .entry-sheet { max-width: 480px; left: 50%; transform: translateX(-50%); border-radius: 18px 18px 0 0; }
+  .chip-grid { grid-template-columns: repeat(6, 1fr); }
 }
 
 @media (min-width: 700px) and (orientation: landscape) {
   .tabbar { max-width: 900px; left: 50%; transform: translateX(-50%); border-radius: 14px 14px 0 0; }
+  .fab { right: calc(50% - 450px + 20px); }
 }

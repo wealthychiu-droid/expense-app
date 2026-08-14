@@ -4,9 +4,10 @@ let state = {
   categories: [],
   accounts: [],
   recipients: [],
+  sheetType: 'expense',
   selectedCategoryId: null,
   selectedRecipientIds: [],
-  currentType: 'expense',
+  editingId: null,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -22,6 +23,12 @@ function todayStr() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
 // ---------- Tab navigation ----------
 function initTabs() {
   $$('.tab-btn').forEach((btn) => {
@@ -29,41 +36,115 @@ function initTabs() {
       const tab = btn.dataset.tab;
       $$('.tab-btn').forEach((b) => b.classList.toggle('active', b === btn));
       $$('.pane').forEach((p) => p.classList.toggle('active', p.id === 'pane-' + tab));
-      if (tab === 'history') renderHistory();
       if (tab === 'settings') renderManagers();
     });
   });
 }
 
-// ---------- Entry form ----------
-function initTypeToggle() {
-  $$('.type-btn').forEach((btn) => {
+// ---------- Bottom sheet open/close ----------
+function openSheet(editTxn) {
+  state.editingId = editTxn ? editTxn.id : null;
+  state.sheetType = editTxn ? editTxn.type : 'expense';
+  state.selectedCategoryId = editTxn && editTxn.categoryId ? editTxn.categoryId : null;
+  state.selectedRecipientIds = editTxn && editTxn.recipientIds ? editTxn.recipientIds.slice() : [];
+
+  setSheetTypeButtons(state.sheetType);
+  updateSheetFieldVisibility();
+  renderCategoryGrid();
+  renderRecipientRow();
+  renderAccountSelect();
+  renderTransferAccountSelects();
+
+  if (editTxn) {
+    $('#amountInput').value = editTxn.amount;
+    $('#merchantInput').value = editTxn.merchant || '';
+    $('#itemNameInput').value = editTxn.itemName || '';
+    $('#noteInput').value = editTxn.note || '';
+    if (editTxn.type === 'transfer') {
+      $('#fromAccountSelect').value = editTxn.fromAccountId || '';
+      $('#toAccountSelect').value = editTxn.toAccountId || '';
+      $('#transferDateInput').value = editTxn.date || todayStr();
+    } else {
+      $('#accountSelect').value = editTxn.accountId || '';
+      $('#dateInput').value = editTxn.date || todayStr();
+    }
+    $('#deleteBtn').hidden = false;
+  } else {
+    $('#amountInput').value = '';
+    $('#merchantInput').value = '';
+    $('#itemNameInput').value = '';
+    $('#noteInput').value = '';
+    $('#dateInput').value = todayStr();
+    $('#transferDateInput').value = todayStr();
+    resetRecipientDefault();
+    renderRecipientRow();
+    renderAccountSelect();
+    $('#deleteBtn').hidden = true;
+  }
+
+  $('#sheetBackdrop').hidden = false;
+  $('#entrySheet').hidden = false;
+  if (!editTxn) $('#amountInput').focus();
+}
+
+function closeSheet() {
+  $('#sheetBackdrop').hidden = true;
+  $('#entrySheet').hidden = true;
+  state.editingId = null;
+}
+
+function setSheetTypeButtons(type) {
+  $$('#sheetTypeToggle .type-btn').forEach((b) => b.classList.toggle('active', b.dataset.type === type));
+}
+
+function updateSheetFieldVisibility() {
+  const t = state.sheetType;
+  $('#categoryBlock').hidden = t === 'transfer';
+  $('#recipientBlock').hidden = t !== 'expense';
+  $('#accountRow').hidden = t === 'transfer';
+  $('#transferBlock').hidden = t !== 'transfer';
+  $('#merchantBlock').hidden = t !== 'expense';
+  $('#itemNameBlock').hidden = t !== 'expense';
+  $('#noteBlock').hidden = false;
+}
+
+function initSheetTypeToggle() {
+  $$('#sheetTypeToggle .type-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      state.currentType = btn.dataset.type;
-      $$('.type-btn').forEach((b) => b.classList.toggle('active', b === btn));
+      state.sheetType = btn.dataset.type;
+      state.selectedCategoryId = null;
+      setSheetTypeButtons(state.sheetType);
+      updateSheetFieldVisibility();
+      renderCategoryGrid();
     });
   });
 }
 
+// ---------- Field rendering ----------
 function renderCategoryGrid() {
   const grid = $('#categoryGrid');
   grid.innerHTML = '';
-  state.categories
+  if (state.sheetType === 'transfer') return;
+
+  const list = state.categories
+    .filter((c) => c.type === state.sheetType)
     .slice()
-    .sort((a, b) => a.order - b.order)
-    .forEach((cat) => {
-      const cell = document.createElement('button');
-      cell.type = 'button';
-      cell.className = 'chip-cell' + (state.selectedCategoryId === cat.id ? ' selected' : '');
-      cell.innerHTML = `<span class="chip-icon">${cat.name.charAt(0)}</span><span class="chip-name">${escapeHtml(cat.name)}</span>`;
-      cell.addEventListener('click', () => {
-        state.selectedCategoryId = cat.id;
-        renderCategoryGrid();
-      });
-      grid.appendChild(cell);
+    .sort((a, b) => a.order - b.order);
+
+  list.forEach((cat) => {
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = 'chip-cell' + (state.selectedCategoryId === cat.id ? ' selected' : '');
+    cell.innerHTML = `<span class="chip-icon">${cat.name.charAt(0)}</span><span class="chip-name">${escapeHtml(cat.name)}</span>`;
+    cell.addEventListener('click', () => {
+      state.selectedCategoryId = cat.id;
+      renderCategoryGrid();
     });
-  if (state.selectedCategoryId === null && state.categories.length > 0) {
-    state.selectedCategoryId = state.categories.slice().sort((a, b) => a.order - b.order)[0].id;
+    grid.appendChild(cell);
+  });
+
+  if (!state.selectedCategoryId && list.length > 0) {
+    state.selectedCategoryId = list[0].id;
     renderCategoryGrid();
   }
 }
@@ -107,6 +188,29 @@ function renderAccountSelect() {
   else if (defaultAcc) sel.value = defaultAcc.id;
 }
 
+function renderTransferAccountSelects() {
+  ['#fromAccountSelect', '#toAccountSelect'].forEach((selId) => {
+    const sel = $(selId);
+    const prevValue = sel.value;
+    sel.innerHTML = '';
+    state.accounts
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .forEach((a) => {
+        const opt = document.createElement('option');
+        opt.value = a.id;
+        opt.textContent = a.name;
+        sel.appendChild(opt);
+      });
+    if (prevValue && state.accounts.some((a) => a.id === prevValue)) sel.value = prevValue;
+  });
+  // default "to" to the second account if available, to avoid from===to by default
+  if (state.accounts.length > 1 && $('#toAccountSelect').value === $('#fromAccountSelect').value) {
+    const other = state.accounts.find((a) => a.id !== $('#fromAccountSelect').value);
+    if (other) $('#toAccountSelect').value = other.id;
+  }
+}
+
 function resetRecipientDefault() {
   const defaultR = state.recipients.find((r) => r.isDefault);
   state.selectedRecipientIds = defaultR ? [defaultR.id] : [];
@@ -116,67 +220,106 @@ async function refreshMerchantList() {
   const txns = await DB.getAll('transactions');
   const counts = {};
   txns.forEach((t) => {
-    if (t.isDeleted || !t.merchant) return;
+    if (t.isDeleted || t.type !== 'expense' || !t.merchant) return;
     counts[t.merchant] = (counts[t.merchant] || 0) + 1;
   });
   const sorted = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).slice(0, 30);
-  const list = $('#merchantList');
-  list.innerHTML = sorted.map((m) => `<option value="${escapeHtml(m)}"></option>`).join('');
+  $('#merchantList').innerHTML = sorted.map((m) => `<option value="${escapeHtml(m)}"></option>`).join('');
 }
 
 async function updateMonthSummary() {
   const txns = await DB.getAll('transactions');
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  let total = 0;
+  let expense = 0, income = 0;
   txns.forEach((t) => {
-    if (t.isDeleted || t.type !== 'expense') return;
-    if (t.date && t.date.startsWith(ym)) total += t.amount;
+    if (t.isDeleted || t.type === 'transfer') return;
+    if (!t.date || !t.date.startsWith(ym)) return;
+    if (t.type === 'expense') expense += t.amount;
+    if (t.type === 'income') income += t.amount;
   });
-  $('#monthSummary').textContent = `本月支出 $${fmtMoney(total)}`;
+  $('#sumExpense').textContent = `$${fmtMoney(expense)}`;
+  $('#sumIncome').textContent = `$${fmtMoney(income)}`;
+  $('#sumBalance').textContent = `$${fmtMoney(income - expense)}`;
 }
 
-function clearEntryFormAfterSave() {
-  $('#amountInput').value = '';
-  $('#merchantInput').value = '';
-  $('#itemNameInput').value = '';
-  $('#noteInput').value = '';
-  // keep type / category / recipients / account / date as-is for fast consecutive entry
-}
-
+// ---------- Save / Delete ----------
 async function handleSave() {
   const amount = parseFloat($('#amountInput').value);
   if (!amount || amount <= 0) {
     $('#amountInput').focus();
     return;
   }
-  if (!state.selectedCategoryId) return;
 
-  const txn = {
-    id: DB.uuid(),
-    type: state.currentType,
-    amount: amount,
-    categoryId: state.selectedCategoryId,
-    recipientIds: state.selectedRecipientIds.slice(),
-    accountId: $('#accountSelect').value,
-    merchant: $('#merchantInput').value.trim(),
-    itemName: $('#itemNameInput').value.trim(),
-    note: $('#noteInput').value.trim(),
-    date: $('#dateInput').value || todayStr(),
-    updatedAt: Date.now(),
-    deviceId: DB.deviceId(),
-    isDeleted: false,
-  };
+  const isNew = !state.editingId;
+  const id = state.editingId || DB.uuid();
+  let txn;
+
+  if (state.sheetType === 'transfer') {
+    const fromAccountId = $('#fromAccountSelect').value;
+    const toAccountId = $('#toAccountSelect').value;
+    if (!fromAccountId || !toAccountId || fromAccountId === toAccountId) {
+      alert('請選擇兩個不同的帳戶');
+      return;
+    }
+    txn = {
+      id, type: 'transfer', amount,
+      fromAccountId, toAccountId,
+      note: $('#noteInput').value.trim(),
+      date: $('#transferDateInput').value || todayStr(),
+      updatedAt: Date.now(), deviceId: DB.deviceId(), isDeleted: false,
+    };
+  } else {
+    if (!state.selectedCategoryId) return;
+    txn = {
+      id, type: state.sheetType, amount,
+      categoryId: state.selectedCategoryId,
+      recipientIds: state.sheetType === 'expense' ? state.selectedRecipientIds.slice() : [],
+      accountId: $('#accountSelect').value,
+      merchant: state.sheetType === 'expense' ? $('#merchantInput').value.trim() : '',
+      itemName: state.sheetType === 'expense' ? $('#itemNameInput').value.trim() : '',
+      note: $('#noteInput').value.trim(),
+      date: $('#dateInput').value || todayStr(),
+      updatedAt: Date.now(), deviceId: DB.deviceId(), isDeleted: false,
+    };
+  }
+
   await DB.put('transactions', txn);
-  clearEntryFormAfterSave();
   await refreshMerchantList();
   await updateMonthSummary();
+  await renderHistory();
+
   const toast = $('#saveToast');
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 1200);
+
+  if (isNew) {
+    // stay open, clear only the free-text fields, for fast consecutive entries
+    $('#amountInput').value = '';
+    $('#merchantInput').value = '';
+    $('#itemNameInput').value = '';
+    $('#noteInput').value = '';
+    $('#amountInput').focus();
+  } else {
+    closeSheet();
+  }
 }
 
-// ---------- History ----------
+async function handleDelete() {
+  if (!state.editingId) return;
+  if (!confirm('刪除這筆紀錄嗎？')) return;
+  const txn = await DB.get('transactions', state.editingId);
+  if (txn) {
+    txn.isDeleted = true;
+    txn.updatedAt = Date.now();
+    await DB.put('transactions', txn);
+  }
+  closeSheet();
+  await updateMonthSummary();
+  await renderHistory();
+}
+
+// ---------- Home feed ----------
 async function renderHistory() {
   const txns = (await DB.getAll('transactions')).filter((t) => !t.isDeleted);
   txns.sort((a, b) => (b.date + b.updatedAt).localeCompare(a.date + a.updatedAt));
@@ -204,124 +347,159 @@ async function renderHistory() {
       label.textContent = t.date;
       list.appendChild(label);
     }
-    const cat = catMap[t.categoryId];
-    const acc = accMap[t.accountId];
-    const recipientNames = (t.recipientIds || []).map((id) => recMap[id] && recMap[id].name).filter(Boolean).join('、');
 
     const row = document.createElement('div');
     row.className = 'history-row';
-    const title = t.itemName || (cat ? cat.name : '');
-    const subParts = [acc ? acc.name : '', recipientNames, t.merchant].filter(Boolean);
-    row.innerHTML = `
-      <div class="history-row-left">
-        <div class="history-row-icon">${cat ? cat.name.charAt(0) : '?'}</div>
-        <div>
-          <div class="history-row-title">${escapeHtml(title)}</div>
-          <div class="history-row-sub">${escapeHtml(subParts.join(' · '))}</div>
+
+    if (t.type === 'transfer') {
+      const fromAcc = accMap[t.fromAccountId];
+      const toAcc = accMap[t.toAccountId];
+      row.innerHTML = `
+        <div class="history-row-left">
+          <div class="history-row-icon transfer">⇄</div>
+          <div>
+            <div class="history-row-title">轉帳</div>
+            <div class="history-row-sub">${escapeHtml((fromAcc ? fromAcc.name : '') + ' → ' + (toAcc ? toAcc.name : ''))}</div>
+          </div>
         </div>
-      </div>
-      <div class="history-row-amount ${t.type}">${t.type === 'expense' ? '-' : '+'}${fmtMoney(t.amount)}</div>
-    `;
-    row.addEventListener('click', async () => {
-      if (confirm(`刪除這筆「${title || '紀錄'}」嗎？`)) {
-        t.isDeleted = true;
-        t.updatedAt = Date.now();
-        await DB.put('transactions', t);
-        renderHistory();
-        updateMonthSummary();
-      }
-    });
+        <div class="history-row-amount transfer">${fmtMoney(t.amount)}</div>
+      `;
+    } else {
+      const cat = catMap[t.categoryId];
+      const acc = accMap[t.accountId];
+      const recipientNames = (t.recipientIds || []).map((id) => recMap[id] && recMap[id].name).filter(Boolean).join('、');
+      const title = t.itemName || (cat ? cat.name : '');
+      const subParts = [acc ? acc.name : '', recipientNames, t.merchant].filter(Boolean);
+      row.innerHTML = `
+        <div class="history-row-left">
+          <div class="history-row-icon">${cat ? cat.name.charAt(0) : '?'}</div>
+          <div>
+            <div class="history-row-title">${escapeHtml(title)}</div>
+            <div class="history-row-sub">${escapeHtml(subParts.join(' · '))}</div>
+          </div>
+        </div>
+        <div class="history-row-amount ${t.type}">${t.type === 'expense' ? '-' : '+'}${fmtMoney(t.amount)}</div>
+      `;
+    }
+
+    row.addEventListener('click', () => openSheet(t));
     list.appendChild(row);
   });
 }
 
 // ---------- Settings managers ----------
-function renderManagerList(containerSel, storeName, items, options = {}) {
+function renderManagerList(containerSel, storeName, items) {
   const container = $(containerSel);
   container.innerHTML = '';
-  items
-    .slice()
-    .sort((a, b) => a.order - b.order)
-    .forEach((item) => {
-      const row = document.createElement('div');
-      row.className = 'manager-row';
+  const sorted = items.slice().sort((a, b) => a.order - b.order);
 
-      const name = document.createElement('div');
-      name.className = 'manager-row-name';
-      name.contentEditable = 'true';
-      name.textContent = item.name;
-      name.addEventListener('blur', async () => {
-        const newName = name.textContent.trim();
-        if (newName && newName !== item.name) {
-          item.name = newName;
-          await DB.put(storeName, item);
-          await refreshAllLists();
-          renderManagers();
-        } else {
-          name.textContent = item.name;
-        }
-      });
+  sorted.forEach((item, idx) => {
+    const row = document.createElement('div');
+    row.className = 'manager-row';
 
-      const defaultBtn = document.createElement('button');
-      defaultBtn.type = 'button';
-      defaultBtn.className = 'default-btn' + (item.isDefault ? ' is-default' : '');
-      defaultBtn.textContent = item.isDefault ? '預設' : '設為預設';
-      defaultBtn.addEventListener('click', async () => {
-        for (const other of items) {
-          if (other.isDefault && other.id !== item.id) {
-            other.isDefault = false;
-            await DB.put(storeName, other);
-          }
-        }
-        item.isDefault = true;
+    const reorderBox = document.createElement('div');
+    reorderBox.className = 'reorder-btns';
+    const upBtn = document.createElement('button');
+    upBtn.type = 'button'; upBtn.className = 'reorder-btn'; upBtn.textContent = '▲';
+    upBtn.disabled = idx === 0;
+    upBtn.addEventListener('click', async () => {
+      const other = sorted[idx - 1];
+      const tmp = item.order; item.order = other.order; other.order = tmp;
+      await DB.put(storeName, item); await DB.put(storeName, other);
+      await refreshAllLists(); renderManagers();
+    });
+    const downBtn = document.createElement('button');
+    downBtn.type = 'button'; downBtn.className = 'reorder-btn'; downBtn.textContent = '▼';
+    downBtn.disabled = idx === sorted.length - 1;
+    downBtn.addEventListener('click', async () => {
+      const other = sorted[idx + 1];
+      const tmp = item.order; item.order = other.order; other.order = tmp;
+      await DB.put(storeName, item); await DB.put(storeName, other);
+      await refreshAllLists(); renderManagers();
+    });
+    reorderBox.appendChild(upBtn); reorderBox.appendChild(downBtn);
+
+    const name = document.createElement('div');
+    name.className = 'manager-row-name';
+    name.contentEditable = 'true';
+    name.textContent = item.name;
+    name.addEventListener('blur', async () => {
+      const newName = name.textContent.trim();
+      if (newName && newName !== item.name) {
+        item.name = newName;
         await DB.put(storeName, item);
         await refreshAllLists();
         renderManagers();
-      });
-
-      const delBtn = document.createElement('button');
-      delBtn.type = 'button';
-      delBtn.className = 'delete-btn';
-      delBtn.textContent = '刪除';
-      delBtn.addEventListener('click', async () => {
-        if (items.length <= 1) {
-          alert('至少要保留一個');
-          return;
-        }
-        if (confirm(`刪除「${item.name}」？（已記錄的舊資料不會受影響）`)) {
-          await DB.delete(storeName, item.id);
-          await refreshAllLists();
-          renderManagers();
-        }
-      });
-
-      row.appendChild(name);
-      row.appendChild(defaultBtn);
-      row.appendChild(delBtn);
-      container.appendChild(row);
+      } else {
+        name.textContent = item.name;
+      }
     });
+
+    const defaultBtn = document.createElement('button');
+    defaultBtn.type = 'button';
+    defaultBtn.className = 'default-btn' + (item.isDefault ? ' is-default' : '');
+    defaultBtn.textContent = item.isDefault ? '預設' : '設為預設';
+    defaultBtn.addEventListener('click', async () => {
+      for (const other of items) {
+        if (other.isDefault && other.id !== item.id) {
+          other.isDefault = false;
+          await DB.put(storeName, other);
+        }
+      }
+      item.isDefault = true;
+      await DB.put(storeName, item);
+      await refreshAllLists();
+      renderManagers();
+    });
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'delete-btn';
+    delBtn.textContent = '刪除';
+    delBtn.addEventListener('click', async () => {
+      if (items.length <= 1) {
+        alert('至少要保留一個');
+        return;
+      }
+      if (confirm(`刪除「${item.name}」？（已記錄的舊資料不會受影響）`)) {
+        await DB.delete(storeName, item.id);
+        await refreshAllLists();
+        renderManagers();
+      }
+    });
+
+    row.appendChild(reorderBox);
+    row.appendChild(name);
+    row.appendChild(defaultBtn);
+    row.appendChild(delBtn);
+    container.appendChild(row);
+  });
 }
 
 function renderManagers() {
-  renderManagerList('#categoryManager', 'categories', state.categories);
+  renderManagerList('#expenseCategoryManager', 'categories', state.categories.filter((c) => c.type === 'expense'));
+  renderManagerList('#incomeCategoryManager', 'categories', state.categories.filter((c) => c.type === 'income'));
   renderManagerList('#accountManager', 'accounts', state.accounts);
   renderManagerList('#recipientManager', 'recipients', state.recipients);
 }
 
 function initAddButtons() {
   const addPairs = [
-    ['#addCategoryBtn', '#newCategoryInput', 'categories'],
-    ['#addAccountBtn', '#newAccountInput', 'accounts'],
-    ['#addRecipientBtn', '#newRecipientInput', 'recipients'],
+    ['#addExpenseCategoryBtn', '#newExpenseCategoryInput', 'categories', { type: 'expense' }],
+    ['#addIncomeCategoryBtn', '#newIncomeCategoryInput', 'categories', { type: 'income' }],
+    ['#addAccountBtn', '#newAccountInput', 'accounts', {}],
+    ['#addRecipientBtn', '#newRecipientInput', 'recipients', {}],
   ];
-  addPairs.forEach(([btnSel, inputSel, storeName]) => {
+  addPairs.forEach(([btnSel, inputSel, storeName, extra]) => {
     $(btnSel).addEventListener('click', async () => {
       const input = $(inputSel);
       const name = input.value.trim();
       if (!name) return;
-      const list = state[storeName];
+      const list = storeName === 'categories'
+        ? state.categories.filter((c) => c.type === extra.type)
+        : state[storeName];
       const maxOrder = list.reduce((m, x) => Math.max(m, x.order), -1);
-      await DB.put(storeName, { id: DB.uuid(), name, order: maxOrder + 1, isDefault: list.length === 0 });
+      await DB.put(storeName, { id: DB.uuid(), name, order: maxOrder + 1, isDefault: list.length === 0, ...extra });
       input.value = '';
       await refreshAllLists();
       renderManagers();
@@ -349,15 +527,6 @@ async function refreshAllLists() {
   state.selectedRecipientIds = state.selectedRecipientIds.filter((id) =>
     state.recipients.some((r) => r.id === id)
   );
-  renderCategoryGrid();
-  renderRecipientRow();
-  renderAccountSelect();
-}
-
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
 }
 
 // ---------- Init ----------
@@ -366,18 +535,18 @@ async function init() {
   await loadLists();
 
   initTabs();
-  initTypeToggle();
+  initSheetTypeToggle();
   initAddButtons();
+  updateSheetFieldVisibility();
 
-  $('#dateInput').value = todayStr();
-  resetRecipientDefault();
-  renderCategoryGrid();
-  renderRecipientRow();
-  renderAccountSelect();
   await refreshMerchantList();
   await updateMonthSummary();
+  await renderHistory();
 
+  $('#fabAdd').addEventListener('click', () => openSheet(null));
+  $('#sheetBackdrop').addEventListener('click', closeSheet);
   $('#saveBtn').addEventListener('click', handleSave);
+  $('#deleteBtn').addEventListener('click', handleDelete);
 
   window.addEventListener('online', () => {
     $('#syncIndicator').classList.add('online');
