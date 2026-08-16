@@ -65,6 +65,18 @@ button, input, select {
 .pane.active { display: block; }
 
 /* ---- Home summary card ---- */
+/* pull to refresh */
+.pull-indicator {
+  height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: height 0.15s ease-out;
+}
+
 .summary-card {
   background: var(--surface-1);
   border: 1px solid var(--border);

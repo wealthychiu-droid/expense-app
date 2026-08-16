@@ -44,10 +44,15 @@ function dateStrForOffset(offsetDays) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-function formatDateLabel(dateStr) {
+function weekdayChar(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
   const dateObj = new Date(y, m - 1, d);
-  const weekday = ['日', '一', '二', '三', '四', '五', '六'][dateObj.getDay()];
+  return ['日', '一', '二', '三', '四', '五', '六'][dateObj.getDay()];
+}
+
+function formatDateLabel(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const weekday = weekdayChar(dateStr);
   let suffix = '';
   if (dateStr === todayStr()) suffix = '（今天）';
   else if (dateStr === dateStrForOffset(-1)) suffix = '（昨天）';
@@ -367,7 +372,7 @@ async function renderHistory() {
       lastDate = t.date;
       const label = document.createElement('div');
       label.className = 'history-date-label';
-      label.textContent = t.date;
+      label.textContent = `${t.date}（星期${weekdayChar(t.date)}）`;
       list.appendChild(label);
     }
 
@@ -718,7 +723,20 @@ function initDriveUI() {
     }
   });
 
-  $('#driveSyncBtn').addEventListener('click', () => performSync(false));
+  $('#driveSyncBtn').addEventListener('click', async () => {
+    const btn = $('#driveSyncBtn');
+    const original = '立即同步';
+    btn.disabled = true;
+    btn.textContent = '同步中…';
+    try {
+      await performSync(false);
+      btn.textContent = '已同步 ✓';
+    } catch (e) {
+      btn.textContent = original;
+    } finally {
+      setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1200);
+    }
+  });
 
   $('#driveDisconnectBtn').addEventListener('click', () => {
     if (confirm('解除連接後，這台裝置不會再自動同步，但已同步過的資料不會被刪除。確定嗎？')) {
@@ -749,6 +767,57 @@ function initDriveUI() {
   });
 }
 
+function initPullToRefresh() {
+  const indicator = $('#pullIndicator');
+  const text = $('#pullIndicatorText');
+  const threshold = 60;
+  const maxPull = 90;
+  let startY = 0;
+  let pulling = false;
+  let dragging = false;
+
+  document.addEventListener('touchstart', (e) => {
+    if (!$('#pane-home').classList.contains('active')) { pulling = false; return; }
+    if ((document.scrollingElement || document.documentElement).scrollTop <= 0) {
+      startY = e.touches[0].clientY;
+      pulling = true;
+      dragging = false;
+    } else {
+      pulling = false;
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!pulling) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 0 && (document.scrollingElement || document.documentElement).scrollTop <= 0) {
+      dragging = true;
+      e.preventDefault();
+      const dist = Math.min(dy * 0.5, maxPull);
+      indicator.style.height = dist + 'px';
+      text.textContent = dist >= threshold ? '放開以同步' : '下拉重新整理';
+    }
+  }, { passive: false });
+
+  document.addEventListener('touchend', async () => {
+    if (!pulling || !dragging) { pulling = false; dragging = false; return; }
+    const dist = parseInt(indicator.style.height || '0', 10);
+    pulling = false;
+    dragging = false;
+    if (dist >= threshold) {
+      indicator.style.height = '40px';
+      text.textContent = Drive.isConnected() ? '同步中…' : '離線儲存，無法同步';
+      if (Drive.isConnected()) {
+        await performSync(false);
+        text.textContent = '已同步 ✓';
+      }
+      setTimeout(() => { indicator.style.height = '0px'; }, 700);
+    } else {
+      indicator.style.height = '0px';
+    }
+  });
+}
+
 // ---------- Init ----------
 async function init() {
   await DB.seedDefaults();
@@ -761,6 +830,7 @@ async function init() {
   initSheetTypeToggle();
   initAddButtons();
   initDriveUI();
+  initPullToRefresh();
   updateSheetFieldVisibility();
 
   await updateMonthSummary();
