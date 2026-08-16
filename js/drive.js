@@ -46,8 +46,11 @@ function requestToken(interactive) {
       resolve(accessToken);
     };
     client.error_callback = (err) => reject(err);
+    const opts = { prompt: interactive ? 'consent' : '' };
+    const hint = localStorage.getItem('driveAccountEmail');
+    if (hint) opts.hint = hint;
     try {
-      client.requestAccessToken({ prompt: interactive ? 'consent' : '' });
+      client.requestAccessToken(opts);
     } catch (err) {
       reject(err);
     }
@@ -164,8 +167,18 @@ const Drive = {
     const v = localStorage.getItem('driveLastSync');
     return v ? parseInt(v, 10) : null;
   },
+  accountEmail() {
+    return localStorage.getItem('driveAccountEmail') || '';
+  },
   async connect() {
     await ensureToken(true);
+    try {
+      const res = await driveFetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)');
+      const data = await res.json();
+      if (data.user && data.user.emailAddress) {
+        localStorage.setItem('driveAccountEmail', data.user.emailAddress);
+      }
+    } catch (e) { /* non-fatal — sync can still proceed without the hint */ }
     localStorage.setItem('driveConnected', '1');
     await this.sync();
   },
@@ -173,6 +186,7 @@ const Drive = {
     localStorage.removeItem('driveConnected');
     localStorage.removeItem('driveFolderId');
     localStorage.removeItem('driveFileId');
+    localStorage.removeItem('driveAccountEmail');
     accessToken = null;
     accessTokenExpiry = 0;
   },

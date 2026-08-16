@@ -674,6 +674,7 @@ function updateDriveStatusUI() {
   $('#driveStatusBadge').classList.toggle('badge-muted', !connected);
   const last = Drive.lastSyncAt();
   $('#driveLastSync').textContent = last ? '上次同步：' + new Date(last).toLocaleString('zh-Hant-TW') : '';
+  $('#driveAccountEmail').textContent = connected ? Drive.accountEmail() : '';
   $('#syncStatusText').textContent = navigator.onLine ? (connected ? '線上' : '離線儲存') : '離線';
 }
 
