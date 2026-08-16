@@ -1,11 +1,8 @@
 // db.js - IndexedDB wrapper for the expense tracker
-// Stores: categories, accounts, recipients, transactions
-// Each list item: { id, name, order, isDefault }
-// Transaction: { id, type, amount, categoryId, recipientIds[], accountId,
-//                merchant, itemName, note, date, updatedAt, deviceId, isDeleted }
+// Stores: categories, accounts, recipients, merchants, transactions
 
 const DB_NAME = 'expenseTrackerDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise = null;
 
@@ -23,6 +20,9 @@ function openDB() {
       }
       if (!db.objectStoreNames.contains('recipients')) {
         db.createObjectStore('recipients', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('merchants')) {
+        db.createObjectStore('merchants', { keyPath: 'id' });
       }
       if (!db.objectStoreNames.contains('transactions')) {
         const store = db.createObjectStore('transactions', { keyPath: 'id' });

@@ -73,12 +73,23 @@
       </div>
     </div>
 
-    <div class="settings-group">
-      <h2 class="settings-title">帳戶管理</h2>
-      <div id="accountManager" class="manager-list"></div>
-      <div class="add-row">
-        <input type="text" id="newAccountInput" class="text-input" placeholder="新增帳戶名稱" />
-        <button type="button" id="addAccountBtn" class="add-btn">新增</button>
+    <div class="settings-pair">
+      <div class="settings-group">
+        <h2 class="settings-title">帳戶管理</h2>
+        <div id="accountManager" class="manager-list"></div>
+        <div class="add-row">
+          <input type="text" id="newAccountInput" class="text-input" placeholder="新增帳戶名稱" />
+          <button type="button" id="addAccountBtn" class="add-btn">新增</button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <h2 class="settings-title">商家管理</h2>
+        <div id="merchantManager" class="manager-list"></div>
+        <div class="add-row">
+          <input type="text" id="newMerchantInput" class="text-input" placeholder="新增商家名稱" />
+          <button type="button" id="addMerchantBtn" class="add-btn">新增</button>
+        </div>
       </div>
     </div>
 
@@ -117,51 +128,70 @@
   <div class="sheet-handle"></div>
 
   <div class="sheet-header">
-    <div class="type-toggle" id="sheetTypeToggle">
-      <button type="button" class="type-btn active" data-type="expense">支出</button>
-      <button type="button" class="type-btn" data-type="income">收入</button>
+    <div class="date-chip-row" id="dateChipRow">
+      <button type="button" class="date-chip" data-offset="0">今天</button>
+      <button type="button" class="date-chip" data-offset="-1">昨天</button>
+      <button type="button" class="date-chip" data-offset="-2">前天</button>
+      <label for="dateCalendarInput" class="date-chip date-chip-calendar" id="dateCalendarLabel">📅</label>
+      <input type="date" id="dateCalendarInput" class="date-calendar-hidden" />
     </div>
+    <div class="date-selected-label" id="dateSelectedLabel"></div>
+    <input type="hidden" id="dateInput" />
   </div>
 
   <div class="sheet-body">
-    <div class="amount-box">
-      <span class="amount-label">金額</span>
-      <input type="number" inputmode="decimal" id="amountInput" class="amount-input" placeholder="0" min="0" step="1" />
+
+    <div id="sheetFormArea">
+      <div class="amount-row">
+        <div class="amount-box">
+          <span class="amount-label">金額</span>
+          <input type="number" inputmode="decimal" id="amountInput" class="amount-input" placeholder="0" min="0" step="1" />
+        </div>
+        <div class="type-toggle-vertical" id="sheetTypeToggle">
+          <button type="button" class="type-btn-v active" data-type="expense">支出</button>
+          <button type="button" class="type-btn-v" data-type="income">收入</button>
+        </div>
+      </div>
+
+      <div class="field-block" id="categoryBlock">
+        <div class="field-label">分類</div>
+        <div class="chip-grid" id="categoryGrid"></div>
+      </div>
+
+      <div class="field-block" id="recipientBlock">
+        <div class="field-label">對象（可複選）</div>
+        <div class="chip-row" id="recipientRow"></div>
+      </div>
+
+      <div class="field-row" id="accountRow">
+        <select id="accountSelect" class="field-select"></select>
+      </div>
+
+      <div class="field-block" id="merchantBlock">
+        <select id="merchantSelect" class="field-select">
+          <option value="">商家（選填）</option>
+        </select>
+      </div>
+      <div class="field-block" id="itemNameBlock">
+        <input type="text" id="itemNameInput" class="text-input" placeholder="項目名稱（選填）" />
+      </div>
+      <div class="field-block" id="noteBlock">
+        <input type="text" id="noteInput" class="text-input" placeholder="備註（選填）" />
+      </div>
+
+      <button type="button" id="saveBtn" class="save-btn">儲存</button>
+      <button type="button" id="deleteBtn" class="delete-entry-btn" hidden>刪除這筆</button>
     </div>
 
-    <!-- 支出/收入 用：分類 -->
-    <div class="field-block" id="categoryBlock">
-      <div class="field-label">分類</div>
-      <div class="chip-grid" id="categoryGrid"></div>
+    <div id="sheetConfirmArea" class="confirm-area" hidden>
+      <div class="confirm-icon">✓</div>
+      <div class="confirm-text">已完成</div>
+      <div class="confirm-actions">
+        <button type="button" id="confirmHomeBtn" class="confirm-btn confirm-btn-secondary">回首頁</button>
+        <button type="button" id="confirmAgainBtn" class="confirm-btn confirm-btn-primary">再記一筆</button>
+      </div>
     </div>
 
-    <!-- 支出 專用：對象 -->
-    <div class="field-block" id="recipientBlock">
-      <div class="field-label">對象（可複選）</div>
-      <div class="chip-row" id="recipientRow"></div>
-    </div>
-
-    <!-- 支出/收入 用：帳戶 -->
-    <div class="field-row" id="accountRow">
-      <select id="accountSelect" class="field-select"></select>
-      <input type="date" id="dateInput" class="field-date" />
-    </div>
-
-    <!-- 支出 專用選填欄位 -->
-    <div class="field-block" id="merchantBlock">
-      <input type="text" id="merchantInput" class="text-input" placeholder="商家（選填）" list="merchantList" />
-      <datalist id="merchantList"></datalist>
-    </div>
-    <div class="field-block" id="itemNameBlock">
-      <input type="text" id="itemNameInput" class="text-input" placeholder="項目名稱（選填）" />
-    </div>
-    <div class="field-block" id="noteBlock">
-      <input type="text" id="noteInput" class="text-input" placeholder="備註（選填）" />
-    </div>
-
-    <button type="button" id="saveBtn" class="save-btn">儲存</button>
-    <button type="button" id="deleteBtn" class="delete-entry-btn" hidden>刪除這筆</button>
-    <div class="save-toast" id="saveToast">已儲存</div>
   </div>
 </div>
 

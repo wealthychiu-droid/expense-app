@@ -1,9 +1,23 @@
 // app.js - UI logic for the expense tracker
 
+const CATEGORY_COLORS = [
+  { bg: '#fde2e2', fg: '#8f2020' }, // red
+  { bg: '#fde9d2', fg: '#8a4a06' }, // orange
+  { bg: '#fdf3c4', fg: '#7a5f00' }, // yellow
+  { bg: '#e0f3df', fg: '#1f6b2b' }, // green
+  { bg: '#dcefee', fg: '#0e6b63' }, // teal
+  { bg: '#dce8fb', fg: '#1c4c9c' }, // blue
+  { bg: '#e6def8', fg: '#4b2e83' }, // purple
+  { bg: '#fbdff0', fg: '#92195e' }, // pink
+  { bg: '#ece4d8', fg: '#5c4a30' }, // brown
+  { bg: '#e2e2e2', fg: '#3a3a3a' }, // gray
+];
+
 let state = {
   categories: [],
   accounts: [],
   recipients: [],
+  merchants: [],
   sheetType: 'expense',
   selectedCategoryId: null,
   selectedRecipientIds: [],
@@ -17,16 +31,39 @@ function fmtMoney(n) {
   return Math.round(n).toLocaleString('zh-Hant-TW');
 }
 
+function pad2(x) { return String(x).padStart(2, '0'); }
+
 function todayStr() {
   const d = new Date();
-  const pad = (x) => String(x).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function dateStrForOffset(offsetDays) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function formatDateLabel(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  const weekday = ['日', '一', '二', '三', '四', '五', '六'][dateObj.getDay()];
+  let suffix = '';
+  if (dateStr === todayStr()) suffix = '（今天）';
+  else if (dateStr === dateStrForOffset(-1)) suffix = '（昨天）';
+  else if (dateStr === dateStrForOffset(-2)) suffix = '（前天）';
+  return `${y}年${m}月${d}日 星期${weekday}${suffix}`;
 }
 
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str || '';
   return div.innerHTML;
+}
+
+function categoryColor(colorIndex) {
+  if (colorIndex === undefined || colorIndex === null) colorIndex = 0;
+  return CATEGORY_COLORS[colorIndex % CATEGORY_COLORS.length];
 }
 
 // ---------- Tab navigation ----------
@@ -41,8 +78,39 @@ function initTabs() {
   });
 }
 
+// ---------- Date picker ----------
+function setSelectedDate(dateStr) {
+  $('#dateInput').value = dateStr;
+  $('#dateSelectedLabel').textContent = formatDateLabel(dateStr);
+  updateDateChipHighlight();
+}
+
+function updateDateChipHighlight() {
+  const val = $('#dateInput').value;
+  $$('.date-chip[data-offset]').forEach((btn) => {
+    const off = parseInt(btn.dataset.offset, 10);
+    btn.classList.toggle('selected', dateStrForOffset(off) === val);
+  });
+  const isQuickPick = [0, -1, -2].some((off) => dateStrForOffset(off) === val);
+  $('#dateCalendarLabel').classList.toggle('selected', !isQuickPick);
+}
+
+function initDatePicker() {
+  $$('.date-chip[data-offset]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setSelectedDate(dateStrForOffset(parseInt(btn.dataset.offset, 10)));
+    });
+  });
+  $('#dateCalendarInput').addEventListener('change', (e) => {
+    if (e.target.value) setSelectedDate(e.target.value);
+  });
+}
+
 // ---------- Bottom sheet open/close ----------
 function openSheet(editTxn) {
+  $('#sheetConfirmArea').hidden = true;
+  $('#sheetFormArea').hidden = false;
+
   state.editingId = editTxn ? editTxn.id : null;
   state.sheetType = editTxn ? editTxn.type : 'expense';
   state.selectedCategoryId = editTxn && editTxn.categoryId ? editTxn.categoryId : null;
@@ -53,21 +121,22 @@ function openSheet(editTxn) {
   renderCategoryGrid();
   renderRecipientRow();
   renderAccountSelect();
+  renderMerchantSelect();
 
   if (editTxn) {
     $('#amountInput').value = editTxn.amount;
-    $('#merchantInput').value = editTxn.merchant || '';
     $('#itemNameInput').value = editTxn.itemName || '';
     $('#noteInput').value = editTxn.note || '';
     $('#accountSelect').value = editTxn.accountId || '';
-    $('#dateInput').value = editTxn.date || todayStr();
+    $('#merchantSelect').value = editTxn.merchantId || '';
+    setSelectedDate(editTxn.date || todayStr());
     $('#deleteBtn').hidden = false;
   } else {
     $('#amountInput').value = '';
-    $('#merchantInput').value = '';
     $('#itemNameInput').value = '';
     $('#noteInput').value = '';
-    $('#dateInput').value = todayStr();
+    $('#merchantSelect').value = '';
+    setSelectedDate(todayStr());
     resetRecipientDefault();
     renderRecipientRow();
     renderAccountSelect();
@@ -86,7 +155,7 @@ function closeSheet() {
 }
 
 function setSheetTypeButtons(type) {
-  $$('#sheetTypeToggle .type-btn').forEach((b) => b.classList.toggle('active', b.dataset.type === type));
+  $$('#sheetTypeToggle .type-btn-v').forEach((b) => b.classList.toggle('active', b.dataset.type === type));
 }
 
 function updateSheetFieldVisibility() {
@@ -97,7 +166,7 @@ function updateSheetFieldVisibility() {
 }
 
 function initSheetTypeToggle() {
-  $$('#sheetTypeToggle .type-btn').forEach((btn) => {
+  $$('#sheetTypeToggle .type-btn-v').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.sheetType = btn.dataset.type;
       state.selectedCategoryId = null;
@@ -119,10 +188,11 @@ function renderCategoryGrid() {
     .sort((a, b) => a.order - b.order);
 
   list.forEach((cat) => {
+    const color = categoryColor(cat.colorIndex);
     const cell = document.createElement('button');
     cell.type = 'button';
     cell.className = 'chip-cell' + (state.selectedCategoryId === cat.id ? ' selected' : '');
-    cell.innerHTML = `<span class="chip-icon">${cat.name.charAt(0)}</span><span class="chip-name">${escapeHtml(cat.name)}</span>`;
+    cell.innerHTML = `<span class="chip-icon" style="background:${color.bg};color:${color.fg};">${cat.name.charAt(0)}</span><span class="chip-name">${escapeHtml(cat.name)}</span>`;
     cell.addEventListener('click', () => {
       state.selectedCategoryId = cat.id;
       renderCategoryGrid();
@@ -175,26 +245,27 @@ function renderAccountSelect() {
   else if (defaultAcc) sel.value = defaultAcc.id;
 }
 
+function renderMerchantSelect() {
+  const sel = $('#merchantSelect');
+  const prevValue = sel.value;
+  const options = state.merchants
+    .slice()
+    .sort((a, b) => a.order - b.order)
+    .map((m) => `<option value="${m.id}">${escapeHtml(m.name)}</option>`)
+    .join('');
+  sel.innerHTML = `<option value="">商家（選填）</option>${options}`;
+  if (prevValue && state.merchants.some((m) => m.id === prevValue)) sel.value = prevValue;
+}
+
 function resetRecipientDefault() {
   const defaultR = state.recipients.find((r) => r.isDefault);
   state.selectedRecipientIds = defaultR ? [defaultR.id] : [];
 }
 
-async function refreshMerchantList() {
-  const txns = await DB.getAll('transactions');
-  const counts = {};
-  txns.forEach((t) => {
-    if (t.isDeleted || t.type !== 'expense' || !t.merchant) return;
-    counts[t.merchant] = (counts[t.merchant] || 0) + 1;
-  });
-  const sorted = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).slice(0, 30);
-  $('#merchantList').innerHTML = sorted.map((m) => `<option value="${escapeHtml(m)}"></option>`).join('');
-}
-
 async function updateMonthSummary() {
   const txns = await DB.getAll('transactions');
   const now = new Date();
-  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const ym = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
   let expense = 0, income = 0;
   txns.forEach((t) => {
     if (t.isDeleted) return;
@@ -214,17 +285,17 @@ async function handleSave() {
     $('#amountInput').focus();
     return;
   }
+  if (!state.selectedCategoryId) return;
 
   const isNew = !state.editingId;
   const id = state.editingId || DB.uuid();
-  if (!state.selectedCategoryId) return;
 
   const txn = {
     id, type: state.sheetType, amount,
     categoryId: state.selectedCategoryId,
     recipientIds: state.sheetType === 'expense' ? state.selectedRecipientIds.slice() : [],
     accountId: $('#accountSelect').value,
-    merchant: state.sheetType === 'expense' ? $('#merchantInput').value.trim() : '',
+    merchantId: state.sheetType === 'expense' ? $('#merchantSelect').value : '',
     itemName: state.sheetType === 'expense' ? $('#itemNameInput').value.trim() : '',
     note: $('#noteInput').value.trim(),
     date: $('#dateInput').value || todayStr(),
@@ -232,24 +303,26 @@ async function handleSave() {
   };
 
   await DB.put('transactions', txn);
-  await refreshMerchantList();
   await updateMonthSummary();
   await renderHistory();
 
-  const toast = $('#saveToast');
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 1200);
-
   if (isNew) {
-    // stay open, clear only the free-text fields, for fast consecutive entries
-    $('#amountInput').value = '';
-    $('#merchantInput').value = '';
-    $('#itemNameInput').value = '';
-    $('#noteInput').value = '';
-    $('#amountInput').focus();
+    $('#sheetFormArea').hidden = true;
+    $('#sheetConfirmArea').hidden = false;
   } else {
     closeSheet();
   }
+}
+
+function continueEntering() {
+  $('#sheetConfirmArea').hidden = true;
+  $('#sheetFormArea').hidden = false;
+  // clear the fields that change every time; keep date/category/account/recipients/merchant
+  // sticky so consecutive entries of a similar kind are fast
+  $('#amountInput').value = '';
+  $('#itemNameInput').value = '';
+  $('#noteInput').value = '';
+  $('#amountInput').focus();
 }
 
 async function handleDelete() {
@@ -274,6 +347,7 @@ async function renderHistory() {
   const catMap = Object.fromEntries(state.categories.map((c) => [c.id, c]));
   const accMap = Object.fromEntries(state.accounts.map((a) => [a.id, a]));
   const recMap = Object.fromEntries(state.recipients.map((r) => [r.id, r]));
+  const merchMap = Object.fromEntries(state.merchants.map((m) => [m.id, m]));
 
   const list = $('#historyList');
   const empty = $('#historyEmpty');
@@ -295,17 +369,19 @@ async function renderHistory() {
       list.appendChild(label);
     }
 
-    const row = document.createElement('div');
-    row.className = 'history-row';
-
     const cat = catMap[t.categoryId];
     const acc = accMap[t.accountId];
+    const merchant = merchMap[t.merchantId];
     const recipientNames = (t.recipientIds || []).map((id) => recMap[id] && recMap[id].name).filter(Boolean).join('、');
     const title = t.itemName || (cat ? cat.name : '');
-    const subParts = [acc ? acc.name : '', recipientNames, t.merchant].filter(Boolean);
+    const subParts = [acc ? acc.name : '', recipientNames, merchant ? merchant.name : ''].filter(Boolean);
+    const color = categoryColor(cat ? cat.colorIndex : 0);
+
+    const row = document.createElement('div');
+    row.className = 'history-row';
     row.innerHTML = `
       <div class="history-row-left">
-        <div class="history-row-icon">${cat ? cat.name.charAt(0) : '?'}</div>
+        <div class="history-row-icon" style="background:${color.bg};color:${color.fg};">${cat ? cat.name.charAt(0) : '?'}</div>
         <div>
           <div class="history-row-title">${escapeHtml(title)}</div>
           <div class="history-row-sub">${escapeHtml(subParts.join(' · '))}</div>
@@ -313,14 +389,15 @@ async function renderHistory() {
       </div>
       <div class="history-row-amount ${t.type}">${t.type === 'expense' ? '-' : '+'}${fmtMoney(t.amount)}</div>
     `;
-
     row.addEventListener('click', () => openSheet(t));
     list.appendChild(row);
   });
 }
 
 // ---------- Settings managers ----------
-function renderManagerList(containerSel, storeName, items) {
+function renderManagerList(containerSel, storeName, items, opts) {
+  opts = opts || {};
+  const showDefault = opts.showDefault !== false;
   const container = $(containerSel);
   container.innerHTML = '';
   const sorted = items.slice().sort((a, b) => a.order - b.order);
@@ -367,29 +444,35 @@ function renderManagerList(containerSel, storeName, items) {
       }
     });
 
-    const defaultBtn = document.createElement('button');
-    defaultBtn.type = 'button';
-    defaultBtn.className = 'default-btn' + (item.isDefault ? ' is-default' : '');
-    defaultBtn.textContent = item.isDefault ? '預設' : '設為預設';
-    defaultBtn.addEventListener('click', async () => {
-      for (const other of items) {
-        if (other.isDefault && other.id !== item.id) {
-          other.isDefault = false;
-          await DB.put(storeName, other);
+    row.appendChild(reorderBox);
+    row.appendChild(name);
+
+    if (showDefault) {
+      const defaultBtn = document.createElement('button');
+      defaultBtn.type = 'button';
+      defaultBtn.className = 'default-btn' + (item.isDefault ? ' is-default' : '');
+      defaultBtn.textContent = item.isDefault ? '預設' : '設為預設';
+      defaultBtn.addEventListener('click', async () => {
+        for (const other of items) {
+          if (other.isDefault && other.id !== item.id) {
+            other.isDefault = false;
+            await DB.put(storeName, other);
+          }
         }
-      }
-      item.isDefault = true;
-      await DB.put(storeName, item);
-      await refreshAllLists();
-      renderManagers();
-    });
+        item.isDefault = true;
+        await DB.put(storeName, item);
+        await refreshAllLists();
+        renderManagers();
+      });
+      row.appendChild(defaultBtn);
+    }
 
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
     delBtn.className = 'delete-btn';
     delBtn.textContent = '刪除';
     delBtn.addEventListener('click', async () => {
-      if (items.length <= 1) {
+      if (showDefault && items.length <= 1) {
         alert('至少要保留一個');
         return;
       }
@@ -399,11 +482,8 @@ function renderManagerList(containerSel, storeName, items) {
         renderManagers();
       }
     });
-
-    row.appendChild(reorderBox);
-    row.appendChild(name);
-    row.appendChild(defaultBtn);
     row.appendChild(delBtn);
+
     container.appendChild(row);
   });
 }
@@ -412,6 +492,7 @@ function renderManagers() {
   renderManagerList('#expenseCategoryManager', 'categories', state.categories.filter((c) => c.type === 'expense'));
   renderManagerList('#incomeCategoryManager', 'categories', state.categories.filter((c) => c.type === 'income'));
   renderManagerList('#accountManager', 'accounts', state.accounts);
+  renderManagerList('#merchantManager', 'merchants', state.merchants, { showDefault: false });
   renderManagerList('#recipientManager', 'recipients', state.recipients);
 }
 
@@ -420,6 +501,7 @@ function initAddButtons() {
     ['#addExpenseCategoryBtn', '#newExpenseCategoryInput', 'categories', { type: 'expense' }],
     ['#addIncomeCategoryBtn', '#newIncomeCategoryInput', 'categories', { type: 'income' }],
     ['#addAccountBtn', '#newAccountInput', 'accounts', {}],
+    ['#addMerchantBtn', '#newMerchantInput', 'merchants', {}],
     ['#addRecipientBtn', '#newRecipientInput', 'recipients', {}],
   ];
   addPairs.forEach(([btnSel, inputSel, storeName, extra]) => {
@@ -431,7 +513,13 @@ function initAddButtons() {
         ? state.categories.filter((c) => c.type === extra.type)
         : state[storeName];
       const maxOrder = list.reduce((m, x) => Math.max(m, x.order), -1);
-      await DB.put(storeName, { id: DB.uuid(), name, order: maxOrder + 1, isDefault: list.length === 0, ...extra });
+      const record = { id: DB.uuid(), name, order: maxOrder + 1, ...extra };
+      if (storeName === 'categories') {
+        const totalCatCount = state.categories.length;
+        record.colorIndex = totalCatCount % CATEGORY_COLORS.length;
+      }
+      if (storeName !== 'merchants') record.isDefault = list.length === 0;
+      await DB.put(storeName, record);
       input.value = '';
       await refreshAllLists();
       renderManagers();
@@ -439,16 +527,18 @@ function initAddButtons() {
   });
 }
 
-// ---------- Data loading ----------
+// ---------- Data loading & migration ----------
 async function loadLists() {
-  const [categories, accounts, recipients] = await Promise.all([
+  const [categories, accounts, recipients, merchants] = await Promise.all([
     DB.getAll('categories'),
     DB.getAll('accounts'),
     DB.getAll('recipients'),
+    DB.getAll('merchants'),
   ]);
   state.categories = categories;
   state.accounts = accounts;
   state.recipients = recipients;
+  state.merchants = merchants;
 }
 
 async function refreshAllLists() {
@@ -461,17 +551,55 @@ async function refreshAllLists() {
   );
 }
 
+async function migrateCategoryColors() {
+  const categories = await DB.getAll('categories');
+  const sorted = categories.slice().sort((a, b) => a.order - b.order);
+  let idx = 0;
+  for (const c of sorted) {
+    if (c.colorIndex === undefined || c.colorIndex === null) {
+      c.colorIndex = idx % CATEGORY_COLORS.length;
+      await DB.put('categories', c);
+    }
+    idx++;
+  }
+}
+
+async function migrateMerchantsFromLegacyField() {
+  const merchants = await DB.getAll('merchants');
+  const merchantByName = new Map(merchants.map((m) => [m.name, m]));
+  let maxOrder = merchants.reduce((m, x) => Math.max(m, x.order), -1);
+  const txns = await DB.getAll('transactions');
+  for (const t of txns) {
+    if (t.merchantId !== undefined) continue; // already migrated
+    if (t.merchant && String(t.merchant).trim()) {
+      const name = String(t.merchant).trim();
+      let rec = merchantByName.get(name);
+      if (!rec) {
+        rec = { id: DB.uuid(), name, order: ++maxOrder };
+        merchantByName.set(name, rec);
+        await DB.put('merchants', rec);
+      }
+      t.merchantId = rec.id;
+    } else {
+      t.merchantId = '';
+    }
+    await DB.put('transactions', t);
+  }
+}
+
 // ---------- Init ----------
 async function init() {
   await DB.seedDefaults();
+  await migrateCategoryColors();
+  await migrateMerchantsFromLegacyField();
   await loadLists();
 
   initTabs();
+  initDatePicker();
   initSheetTypeToggle();
   initAddButtons();
   updateSheetFieldVisibility();
 
-  await refreshMerchantList();
   await updateMonthSummary();
   await renderHistory();
 
@@ -479,6 +607,8 @@ async function init() {
   $('#sheetBackdrop').addEventListener('click', closeSheet);
   $('#saveBtn').addEventListener('click', handleSave);
   $('#deleteBtn').addEventListener('click', handleDelete);
+  $('#confirmHomeBtn').addEventListener('click', closeSheet);
+  $('#confirmAgainBtn').addEventListener('click', continueEntering);
 
   window.addEventListener('online', () => {
     $('#syncIndicator').classList.add('online');
