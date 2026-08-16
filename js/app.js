@@ -601,6 +601,69 @@ async function migrateMerchantsFromLegacyField() {
   }
 }
 
+async function mergeDuplicatesForStore(storeName, items) {
+  const groups = new Map();
+  items.forEach((item) => {
+    if (!groups.has(item.name)) groups.set(item.name, []);
+    groups.get(item.name).push(item);
+  });
+  const idRemap = new Map();
+  for (const [, group] of groups) {
+    if (group.length <= 1) continue;
+    group.sort((a, b) => (a.order - b.order) || ((a.updatedAt || 0) - (b.updatedAt || 0)));
+    const keeper = group[0];
+    for (let i = 1; i < group.length; i++) {
+      const dup = group[i];
+      idRemap.set(dup.id, keeper.id);
+      dup.isDeleted = true;
+      dup.updatedAt = Date.now();
+      await DB.put(storeName, dup);
+    }
+  }
+  return idRemap;
+}
+
+async function cleanupDuplicates() {
+  const categories = (await DB.getAll('categories')).filter((c) => !c.isDeleted);
+  const accounts = (await DB.getAll('accounts')).filter((a) => !a.isDeleted);
+  const recipients = (await DB.getAll('recipients')).filter((r) => !r.isDeleted);
+  const merchants = (await DB.getAll('merchants')).filter((m) => !m.isDeleted);
+
+  const remapExpense = await mergeDuplicatesForStore('categories', categories.filter((c) => c.type === 'expense'));
+  const remapIncome = await mergeDuplicatesForStore('categories', categories.filter((c) => c.type === 'income'));
+  const catRemap = new Map([...remapExpense, ...remapIncome]);
+  const accRemap = await mergeDuplicatesForStore('accounts', accounts);
+  const recRemap = await mergeDuplicatesForStore('recipients', recipients);
+  const merRemap = await mergeDuplicatesForStore('merchants', merchants);
+
+  const mergedCount = catRemap.size + accRemap.size + recRemap.size + merRemap.size;
+
+  const txns = await DB.getAll('transactions');
+  let txnChangedCount = 0;
+  for (const t of txns) {
+    let changed = false;
+    if (t.categoryId && catRemap.has(t.categoryId)) { t.categoryId = catRemap.get(t.categoryId); changed = true; }
+    if (t.accountId && accRemap.has(t.accountId)) { t.accountId = accRemap.get(t.accountId); changed = true; }
+    if (t.merchantId && merRemap.has(t.merchantId)) { t.merchantId = merRemap.get(t.merchantId); changed = true; }
+    if (t.recipientIds && t.recipientIds.length) {
+      const newIds = Array.from(new Set(t.recipientIds.map((id) => (recRemap.has(id) ? recRemap.get(id) : id))));
+      if (JSON.stringify(newIds) !== JSON.stringify(t.recipientIds)) { t.recipientIds = newIds; changed = true; }
+    }
+    if (changed) {
+      t.updatedAt = Date.now();
+      await DB.put('transactions', t);
+      txnChangedCount++;
+    }
+  }
+
+  await refreshAllLists();
+  renderManagers();
+  await updateMonthSummary();
+  await renderHistory();
+  maybeSync();
+  return { mergedCount, txnChangedCount };
+}
+
 // ---------- Google Drive sync UI ----------
 function updateDriveStatusUI() {
   const connected = Drive.isConnected();
@@ -666,6 +729,22 @@ function initDriveUI() {
   window.addEventListener('online', () => performSync(true));
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) performSync(true);
+  });
+
+  $('#cleanupDuplicatesBtn').addEventListener('click', async () => {
+    if (!confirm('這會合併分類/帳戶/對象/商家裡名稱完全相同的重複項目（保留最早新增的那一筆），並自動修正受影響的交易紀錄。確定要執行嗎？')) return;
+    const btn = $('#cleanupDuplicatesBtn');
+    btn.disabled = true;
+    btn.textContent = '整理中…';
+    try {
+      const result = await cleanupDuplicates();
+      alert(result.mergedCount > 0
+        ? `已合併 ${result.mergedCount} 個重複項目，並更新了 ${result.txnChangedCount} 筆交易紀錄。`
+        : '沒有找到重複的項目。');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '清除重複項目';
+    }
   });
 }
 
