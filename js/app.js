@@ -305,6 +305,7 @@ async function handleSave() {
   await DB.put('transactions', txn);
   await updateMonthSummary();
   await renderHistory();
+  maybeSync();
 
   if (isNew) {
     $('#sheetFormArea').hidden = true;
@@ -337,6 +338,7 @@ async function handleDelete() {
   closeSheet();
   await updateMonthSummary();
   await renderHistory();
+  maybeSync();
 }
 
 // ---------- Home feed ----------
@@ -414,8 +416,9 @@ function renderManagerList(containerSel, storeName, items, opts) {
     upBtn.addEventListener('click', async () => {
       const other = sorted[idx - 1];
       const tmp = item.order; item.order = other.order; other.order = tmp;
+      item.updatedAt = Date.now(); other.updatedAt = Date.now();
       await DB.put(storeName, item); await DB.put(storeName, other);
-      await refreshAllLists(); renderManagers();
+      await refreshAllLists(); renderManagers(); maybeSync();
     });
     const downBtn = document.createElement('button');
     downBtn.type = 'button'; downBtn.className = 'reorder-btn'; downBtn.textContent = '▼';
@@ -423,8 +426,9 @@ function renderManagerList(containerSel, storeName, items, opts) {
     downBtn.addEventListener('click', async () => {
       const other = sorted[idx + 1];
       const tmp = item.order; item.order = other.order; other.order = tmp;
+      item.updatedAt = Date.now(); other.updatedAt = Date.now();
       await DB.put(storeName, item); await DB.put(storeName, other);
-      await refreshAllLists(); renderManagers();
+      await refreshAllLists(); renderManagers(); maybeSync();
     });
     reorderBox.appendChild(upBtn); reorderBox.appendChild(downBtn);
 
@@ -436,9 +440,11 @@ function renderManagerList(containerSel, storeName, items, opts) {
       const newName = name.textContent.trim();
       if (newName && newName !== item.name) {
         item.name = newName;
+        item.updatedAt = Date.now();
         await DB.put(storeName, item);
         await refreshAllLists();
         renderManagers();
+        maybeSync();
       } else {
         name.textContent = item.name;
       }
@@ -456,13 +462,16 @@ function renderManagerList(containerSel, storeName, items, opts) {
         for (const other of items) {
           if (other.isDefault && other.id !== item.id) {
             other.isDefault = false;
+            other.updatedAt = Date.now();
             await DB.put(storeName, other);
           }
         }
         item.isDefault = true;
+        item.updatedAt = Date.now();
         await DB.put(storeName, item);
         await refreshAllLists();
         renderManagers();
+        maybeSync();
       });
       row.appendChild(defaultBtn);
     }
@@ -477,9 +486,12 @@ function renderManagerList(containerSel, storeName, items, opts) {
         return;
       }
       if (confirm(`刪除「${item.name}」？（已記錄的舊資料不會受影響）`)) {
-        await DB.delete(storeName, item.id);
+        item.isDeleted = true;
+        item.updatedAt = Date.now();
+        await DB.put(storeName, item);
         await refreshAllLists();
         renderManagers();
+        maybeSync();
       }
     });
     row.appendChild(delBtn);
@@ -513,7 +525,7 @@ function initAddButtons() {
         ? state.categories.filter((c) => c.type === extra.type)
         : state[storeName];
       const maxOrder = list.reduce((m, x) => Math.max(m, x.order), -1);
-      const record = { id: DB.uuid(), name, order: maxOrder + 1, ...extra };
+      const record = { id: DB.uuid(), name, order: maxOrder + 1, updatedAt: Date.now(), isDeleted: false, ...extra };
       if (storeName === 'categories') {
         const totalCatCount = state.categories.length;
         record.colorIndex = totalCatCount % CATEGORY_COLORS.length;
@@ -523,6 +535,7 @@ function initAddButtons() {
       input.value = '';
       await refreshAllLists();
       renderManagers();
+      maybeSync();
     });
   });
 }
@@ -535,10 +548,10 @@ async function loadLists() {
     DB.getAll('recipients'),
     DB.getAll('merchants'),
   ]);
-  state.categories = categories;
-  state.accounts = accounts;
-  state.recipients = recipients;
-  state.merchants = merchants;
+  state.categories = categories.filter((c) => !c.isDeleted);
+  state.accounts = accounts.filter((a) => !a.isDeleted);
+  state.recipients = recipients.filter((r) => !r.isDeleted);
+  state.merchants = merchants.filter((m) => !m.isDeleted);
 }
 
 async function refreshAllLists() {
@@ -558,6 +571,7 @@ async function migrateCategoryColors() {
   for (const c of sorted) {
     if (c.colorIndex === undefined || c.colorIndex === null) {
       c.colorIndex = idx % CATEGORY_COLORS.length;
+      c.updatedAt = Date.now();
       await DB.put('categories', c);
     }
     idx++;
@@ -575,7 +589,7 @@ async function migrateMerchantsFromLegacyField() {
       const name = String(t.merchant).trim();
       let rec = merchantByName.get(name);
       if (!rec) {
-        rec = { id: DB.uuid(), name, order: ++maxOrder };
+        rec = { id: DB.uuid(), name, order: ++maxOrder, updatedAt: Date.now(), isDeleted: false };
         merchantByName.set(name, rec);
         await DB.put('merchants', rec);
       }
@@ -585,6 +599,74 @@ async function migrateMerchantsFromLegacyField() {
     }
     await DB.put('transactions', t);
   }
+}
+
+// ---------- Google Drive sync UI ----------
+function updateDriveStatusUI() {
+  const connected = Drive.isConnected();
+  $('#driveConnectBtn').hidden = connected;
+  $('#driveSyncBtn').hidden = !connected;
+  $('#driveDisconnectBtn').hidden = !connected;
+  $('#driveStatusBadge').textContent = connected ? '已連接' : '尚未連接';
+  $('#driveStatusBadge').classList.toggle('badge-muted', !connected);
+  const last = Drive.lastSyncAt();
+  $('#driveLastSync').textContent = last ? '上次同步：' + new Date(last).toLocaleString('zh-Hant-TW') : '';
+  $('#syncStatusText').textContent = navigator.onLine ? (connected ? '線上' : '離線儲存') : '離線';
+}
+
+async function afterSyncRefresh() {
+  await refreshAllLists();
+  renderManagers();
+  await updateMonthSummary();
+  await renderHistory();
+  updateDriveStatusUI();
+}
+
+async function performSync(silent) {
+  if (!Drive.isConnected() || !navigator.onLine) return;
+  try {
+    await Drive.sync();
+    await afterSyncRefresh();
+  } catch (err) {
+    console.error('sync failed', err);
+    if (!silent) alert('同步失敗，稍後會自動再試一次');
+  }
+}
+
+function maybeSync() {
+  if (Drive.isConnected() && navigator.onLine) performSync(true);
+}
+
+function initDriveUI() {
+  updateDriveStatusUI();
+
+  $('#driveConnectBtn').addEventListener('click', async () => {
+    $('#driveConnectBtn').disabled = true;
+    $('#driveConnectBtn').textContent = '連接中…';
+    try {
+      await Drive.connect();
+      await afterSyncRefresh();
+    } catch (err) {
+      alert('連接失敗，請再試一次：' + (err && err.message ? err.message : err));
+    } finally {
+      $('#driveConnectBtn').disabled = false;
+      $('#driveConnectBtn').textContent = '連接 Google Drive';
+    }
+  });
+
+  $('#driveSyncBtn').addEventListener('click', () => performSync(false));
+
+  $('#driveDisconnectBtn').addEventListener('click', () => {
+    if (confirm('解除連接後，這台裝置不會再自動同步，但已同步過的資料不會被刪除。確定嗎？')) {
+      Drive.disconnect();
+      updateDriveStatusUI();
+    }
+  });
+
+  window.addEventListener('online', () => performSync(true));
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) performSync(true);
+  });
 }
 
 // ---------- Init ----------
@@ -598,10 +680,13 @@ async function init() {
   initDatePicker();
   initSheetTypeToggle();
   initAddButtons();
+  initDriveUI();
   updateSheetFieldVisibility();
 
   await updateMonthSummary();
   await renderHistory();
+
+  if (Drive.isConnected()) performSync(true);
 
   $('#fabAdd').addEventListener('click', () => openSheet(null));
   $('#sheetBackdrop').addEventListener('click', closeSheet);
@@ -612,16 +697,13 @@ async function init() {
 
   window.addEventListener('online', () => {
     $('#syncIndicator').classList.add('online');
-    $('#syncStatusText').textContent = '線上';
+    updateDriveStatusUI();
   });
   window.addEventListener('offline', () => {
     $('#syncIndicator').classList.remove('online');
-    $('#syncStatusText').textContent = '離線';
+    updateDriveStatusUI();
   });
-  if (navigator.onLine) {
-    $('#syncIndicator').classList.add('online');
-    $('#syncStatusText').textContent = '線上';
-  }
+  if (navigator.onLine) $('#syncIndicator').classList.add('online');
 
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     navigator.serviceWorker.register('service-worker.js').catch(() => {});

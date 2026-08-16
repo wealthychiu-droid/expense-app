@@ -105,10 +105,14 @@
     <div class="settings-group">
       <h2 class="settings-title">雲端同步</h2>
       <div class="drive-status">
-        <span id="driveStatusBadge" class="badge badge-muted">尚未設定</span>
+        <span id="driveStatusBadge" class="badge badge-muted">尚未連接</span>
         <span id="driveLastSync" class="drive-last-sync"></span>
       </div>
-      <button type="button" id="driveConnectBtn" class="add-btn" disabled>連接 Google Drive（下一階段開放）</button>
+      <div class="add-row">
+        <button type="button" id="driveConnectBtn" class="add-btn">連接 Google Drive</button>
+        <button type="button" id="driveSyncBtn" class="add-btn" hidden>立即同步</button>
+      </div>
+      <button type="button" id="driveDisconnectBtn" class="delete-btn" hidden>解除連接</button>
     </div>
   </section>
 
@@ -195,7 +199,9 @@
   </div>
 </div>
 
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="js/db.js"></script>
+<script src="js/drive.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
