@@ -351,11 +351,10 @@ button, input, select {
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
-.reorder-btns { display: flex; flex-direction: column; gap: 6px; }
 .reorder-btn {
-  width: 32px;
-  height: 32px;
-  font-size: 14px;
+  width: 30px;
+  height: 30px;
+  font-size: 13px;
   line-height: 1;
   padding: 0;
   border: 1px solid var(--border);
@@ -365,6 +364,7 @@ button, input, select {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 .reorder-btn:active { background: var(--accent-bg); color: var(--accent); }
 .reorder-btn:disabled { opacity: 0.25; }

@@ -1,6 +1,6 @@
 // app.js - UI logic for the expense tracker
 
-const APP_VERSION = 'v10';
+const APP_VERSION = 'v12';
 
 const CATEGORY_COLORS = [
   { bg: '#fde2e2', fg: '#8f2020' }, // red
@@ -415,8 +415,6 @@ function renderManagerList(containerSel, storeName, items, opts) {
     const row = document.createElement('div');
     row.className = 'manager-row';
 
-    const reorderBox = document.createElement('div');
-    reorderBox.className = 'reorder-btns';
     const upBtn = document.createElement('button');
     upBtn.type = 'button'; upBtn.className = 'reorder-btn'; upBtn.textContent = '▲';
     upBtn.disabled = idx === 0;
@@ -431,6 +429,7 @@ function renderManagerList(containerSel, storeName, items, opts) {
         alert('排序發生錯誤（上移）：' + (err && err.message ? err.message : err));
       }
     });
+
     const downBtn = document.createElement('button');
     downBtn.type = 'button'; downBtn.className = 'reorder-btn'; downBtn.textContent = '▼';
     downBtn.disabled = idx === sorted.length - 1;
@@ -445,7 +444,6 @@ function renderManagerList(containerSel, storeName, items, opts) {
         alert('排序發生錯誤（下移）：' + (err && err.message ? err.message : err));
       }
     });
-    reorderBox.appendChild(upBtn); reorderBox.appendChild(downBtn);
 
     const name = document.createElement('div');
     name.className = 'manager-row-name';
@@ -465,8 +463,9 @@ function renderManagerList(containerSel, storeName, items, opts) {
       }
     });
 
-    row.appendChild(reorderBox);
+    row.appendChild(upBtn);
     row.appendChild(name);
+    row.appendChild(downBtn);
 
     if (showDefault) {
       const defaultBtn = document.createElement('button');
@@ -695,7 +694,9 @@ function updateDriveStatusUI() {
 
 async function afterSyncRefresh() {
   await refreshAllLists();
-  renderManagers();
+  if (!$('#pane-settings').classList.contains('active')) {
+    renderManagers();
+  }
   await updateMonthSummary();
   await renderHistory();
   updateDriveStatusUI();
@@ -870,7 +871,9 @@ async function init() {
   if (navigator.onLine) $('#syncIndicator').classList.add('online');
 
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+    navigator.serviceWorker.register('service-worker.js')
+      .then((reg) => reg.update())
+      .catch(() => {});
   }
 }
 
