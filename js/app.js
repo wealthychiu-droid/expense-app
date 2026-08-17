@@ -1,6 +1,6 @@
 // app.js - UI logic for the expense tracker
 
-const APP_VERSION = 'v16';
+const APP_VERSION = 'v17';
 
 const CATEGORY_COLORS = [
   { bg: '#fde2e2', fg: '#8f2020' }, // red
@@ -421,7 +421,7 @@ function renderManagerList(containerSel, storeName, items, opts) {
     upBtn.addEventListener('click', async () => {
       try {
         await moveItemOrder(storeName, sorted, idx, idx - 1);
-        await refreshAllLists(); renderManagers();
+        await refreshAllLists(); renderManagers(); maybeSync();
       } catch (err) {
         alert('排序發生錯誤（上移）：' + (err && err.message ? err.message : err));
       }
@@ -433,7 +433,7 @@ function renderManagerList(containerSel, storeName, items, opts) {
     downBtn.addEventListener('click', async () => {
       try {
         await moveItemOrder(storeName, sorted, idx, idx + 1);
-        await refreshAllLists(); renderManagers();
+        await refreshAllLists(); renderManagers(); maybeSync();
       } catch (err) {
         alert('排序發生錯誤（下移）：' + (err && err.message ? err.message : err));
       }
@@ -451,6 +451,7 @@ function renderManagerList(containerSel, storeName, items, opts) {
         await DB.put(storeName, item);
         await refreshAllLists();
         renderManagers();
+        maybeSync();
       } else {
         name.textContent = item.name;
       }
@@ -464,7 +465,7 @@ function renderManagerList(containerSel, storeName, items, opts) {
       const defaultBtn = document.createElement('button');
       defaultBtn.type = 'button';
       defaultBtn.className = 'default-btn' + (item.isDefault ? ' is-default' : '');
-      defaultBtn.textContent = item.isDefault ? '預設' : '設為預設';
+      defaultBtn.textContent = item.isDefault ? '此為預設' : '設為預設';
       defaultBtn.addEventListener('click', async () => {
         for (const other of items) {
           if (other.isDefault && other.id !== item.id) {
@@ -478,6 +479,7 @@ function renderManagerList(containerSel, storeName, items, opts) {
         await DB.put(storeName, item);
         await refreshAllLists();
         renderManagers();
+        maybeSync();
       });
       row.appendChild(defaultBtn);
     }
@@ -497,6 +499,7 @@ function renderManagerList(containerSel, storeName, items, opts) {
         await DB.put(storeName, item);
         await refreshAllLists();
         renderManagers();
+        maybeSync();
       }
     });
     row.appendChild(delBtn);
@@ -540,6 +543,7 @@ function initAddButtons() {
       input.value = '';
       await refreshAllLists();
       renderManagers();
+      maybeSync();
     });
   });
 }
@@ -664,6 +668,7 @@ async function cleanupDuplicates() {
   renderManagers();
   await updateMonthSummary();
   await renderHistory();
+  maybeSync();
   return { mergedCount, txnChangedCount };
 }
 
