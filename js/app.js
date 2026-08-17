@@ -1,6 +1,6 @@
 // app.js - UI logic for the expense tracker
 
-const APP_VERSION = 'v14';
+const APP_VERSION = 'v15';
 
 const CATEGORY_COLORS = [
   { bg: '#fde2e2', fg: '#8f2020' }, // red
@@ -424,7 +424,7 @@ function renderManagerList(containerSel, storeName, items, opts) {
         const tmp = item.order; item.order = other.order; other.order = tmp;
         item.updatedAt = Date.now(); other.updatedAt = Date.now();
         await DB.put(storeName, item); await DB.put(storeName, other);
-        await refreshAllLists(); renderManagers(); maybeSync();
+        await refreshAllLists(); renderManagers();
       } catch (err) {
         alert('排序發生錯誤（上移）：' + (err && err.message ? err.message : err));
       }
@@ -439,7 +439,7 @@ function renderManagerList(containerSel, storeName, items, opts) {
         const tmp = item.order; item.order = other.order; other.order = tmp;
         item.updatedAt = Date.now(); other.updatedAt = Date.now();
         await DB.put(storeName, item); await DB.put(storeName, other);
-        await refreshAllLists(); renderManagers(); maybeSync();
+        await refreshAllLists(); renderManagers();
       } catch (err) {
         alert('排序發生錯誤（下移）：' + (err && err.message ? err.message : err));
       }
@@ -457,7 +457,6 @@ function renderManagerList(containerSel, storeName, items, opts) {
         await DB.put(storeName, item);
         await refreshAllLists();
         renderManagers();
-        maybeSync();
       } else {
         name.textContent = item.name;
       }
@@ -485,7 +484,6 @@ function renderManagerList(containerSel, storeName, items, opts) {
         await DB.put(storeName, item);
         await refreshAllLists();
         renderManagers();
-        maybeSync();
       });
       row.appendChild(defaultBtn);
     }
@@ -505,7 +503,6 @@ function renderManagerList(containerSel, storeName, items, opts) {
         await DB.put(storeName, item);
         await refreshAllLists();
         renderManagers();
-        maybeSync();
       }
     });
     row.appendChild(delBtn);
@@ -549,7 +546,6 @@ function initAddButtons() {
       input.value = '';
       await refreshAllLists();
       renderManagers();
-      maybeSync();
     });
   });
 }
@@ -674,7 +670,6 @@ async function cleanupDuplicates() {
   renderManagers();
   await updateMonthSummary();
   await renderHistory();
-  maybeSync();
   return { mergedCount, txnChangedCount };
 }
 
