@@ -1,6 +1,6 @@
 // app.js - UI logic for the expense tracker
 
-const APP_VERSION = 'v15';
+const APP_VERSION = 'v16';
 
 const CATEGORY_COLORS = [
   { bg: '#fde2e2', fg: '#8f2020' }, // red
@@ -420,10 +420,7 @@ function renderManagerList(containerSel, storeName, items, opts) {
     upBtn.disabled = idx === 0;
     upBtn.addEventListener('click', async () => {
       try {
-        const other = sorted[idx - 1];
-        const tmp = item.order; item.order = other.order; other.order = tmp;
-        item.updatedAt = Date.now(); other.updatedAt = Date.now();
-        await DB.put(storeName, item); await DB.put(storeName, other);
+        await moveItemOrder(storeName, sorted, idx, idx - 1);
         await refreshAllLists(); renderManagers();
       } catch (err) {
         alert('排序發生錯誤（上移）：' + (err && err.message ? err.message : err));
@@ -435,10 +432,7 @@ function renderManagerList(containerSel, storeName, items, opts) {
     downBtn.disabled = idx === sorted.length - 1;
     downBtn.addEventListener('click', async () => {
       try {
-        const other = sorted[idx + 1];
-        const tmp = item.order; item.order = other.order; other.order = tmp;
-        item.updatedAt = Date.now(); other.updatedAt = Date.now();
-        await DB.put(storeName, item); await DB.put(storeName, other);
+        await moveItemOrder(storeName, sorted, idx, idx + 1);
         await refreshAllLists(); renderManagers();
       } catch (err) {
         alert('排序發生錯誤（下移）：' + (err && err.message ? err.message : err));
@@ -673,6 +667,46 @@ async function cleanupDuplicates() {
   return { mergedCount, txnChangedCount };
 }
 
+async function moveItemOrder(storeName, sortedArr, fromIdx, toIdx) {
+  const reordered = sortedArr.slice();
+  const [moved] = reordered.splice(fromIdx, 1);
+  reordered.splice(toIdx, 0, moved);
+  const now = Date.now();
+  for (let i = 0; i < reordered.length; i++) {
+    if (reordered[i].order !== i) {
+      reordered[i].order = i;
+      reordered[i].updatedAt = now;
+      await DB.put(storeName, reordered[i]);
+    }
+  }
+}
+
+async function normalizeOrderForList(storeName, items) {
+  const sorted = items.slice().sort((a, b) =>
+    (a.order - b.order) || ((a.updatedAt || 0) - (b.updatedAt || 0)) || String(a.id).localeCompare(String(b.id))
+  );
+  const now = Date.now();
+  for (let i = 0; i < sorted.length; i++) {
+    if (sorted[i].order !== i) {
+      sorted[i].order = i;
+      sorted[i].updatedAt = now;
+      await DB.put(storeName, sorted[i]);
+    }
+  }
+}
+
+async function normalizeAllOrders() {
+  const categories = (await DB.getAll('categories')).filter((c) => !c.isDeleted);
+  const accounts = (await DB.getAll('accounts')).filter((a) => !a.isDeleted);
+  const recipients = (await DB.getAll('recipients')).filter((r) => !r.isDeleted);
+  const merchants = (await DB.getAll('merchants')).filter((m) => !m.isDeleted);
+  await normalizeOrderForList('categories', categories.filter((c) => c.type === 'expense'));
+  await normalizeOrderForList('categories', categories.filter((c) => c.type === 'income'));
+  await normalizeOrderForList('accounts', accounts);
+  await normalizeOrderForList('recipients', recipients);
+  await normalizeOrderForList('merchants', merchants);
+}
+
 // ---------- Google Drive sync UI ----------
 function updateDriveStatusUI() {
   const connected = Drive.isConnected();
@@ -837,6 +871,7 @@ async function init() {
   await DB.seedDefaults();
   await migrateCategoryColors();
   await migrateMerchantsFromLegacyField();
+  await normalizeAllOrders();
   await loadLists();
 
   initTabs();
