@@ -419,21 +419,29 @@ function renderManagerList(containerSel, storeName, items, opts) {
     upBtn.type = 'button'; upBtn.className = 'reorder-btn'; upBtn.textContent = '▲';
     upBtn.disabled = idx === 0;
     upBtn.addEventListener('click', async () => {
-      const other = sorted[idx - 1];
-      const tmp = item.order; item.order = other.order; other.order = tmp;
-      item.updatedAt = Date.now(); other.updatedAt = Date.now();
-      await DB.put(storeName, item); await DB.put(storeName, other);
-      await refreshAllLists(); renderManagers(); maybeSync();
+      try {
+        const other = sorted[idx - 1];
+        const tmp = item.order; item.order = other.order; other.order = tmp;
+        item.updatedAt = Date.now(); other.updatedAt = Date.now();
+        await DB.put(storeName, item); await DB.put(storeName, other);
+        await refreshAllLists(); renderManagers(); maybeSync();
+      } catch (err) {
+        alert('排序發生錯誤（上移）：' + (err && err.message ? err.message : err));
+      }
     });
     const downBtn = document.createElement('button');
     downBtn.type = 'button'; downBtn.className = 'reorder-btn'; downBtn.textContent = '▼';
     downBtn.disabled = idx === sorted.length - 1;
     downBtn.addEventListener('click', async () => {
-      const other = sorted[idx + 1];
-      const tmp = item.order; item.order = other.order; other.order = tmp;
-      item.updatedAt = Date.now(); other.updatedAt = Date.now();
-      await DB.put(storeName, item); await DB.put(storeName, other);
-      await refreshAllLists(); renderManagers(); maybeSync();
+      try {
+        const other = sorted[idx + 1];
+        const tmp = item.order; item.order = other.order; other.order = tmp;
+        item.updatedAt = Date.now(); other.updatedAt = Date.now();
+        await DB.put(storeName, item); await DB.put(storeName, other);
+        await refreshAllLists(); renderManagers(); maybeSync();
+      } catch (err) {
+        alert('排序發生錯誤（下移）：' + (err && err.message ? err.message : err));
+      }
     });
     reorderBox.appendChild(upBtn); reorderBox.appendChild(downBtn);
 
@@ -702,8 +710,11 @@ async function performSync(silent) {
   }
 }
 
+let syncDebounceTimer = null;
 function maybeSync() {
-  if (Drive.isConnected() && navigator.onLine) performSync(true);
+  if (!Drive.isConnected() || !navigator.onLine) return;
+  clearTimeout(syncDebounceTimer);
+  syncDebounceTimer = setTimeout(() => performSync(true), 900);
 }
 
 function initDriveUI() {

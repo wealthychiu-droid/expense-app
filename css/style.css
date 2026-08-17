@@ -351,15 +351,22 @@ button, input, select {
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
-.reorder-btns { display: flex; flex-direction: column; }
+.reorder-btns { display: flex; flex-direction: column; gap: 6px; }
 .reorder-btn {
-  font-size: 10px;
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
   line-height: 1;
-  padding: 2px 4px;
-  border: none;
-  background: none;
-  color: var(--text-muted);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-0);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+.reorder-btn:active { background: var(--accent-bg); color: var(--accent); }
 .reorder-btn:disabled { opacity: 0.25; }
 .manager-row-name { flex: 1; font-size: 14px; min-width: 0; }
 .manager-row-name[contenteditable="true"] { outline: none; border-bottom: 1px dashed var(--border); }
