@@ -145,17 +145,18 @@ async function mergeAndSaveLocal(remote) {
     const remoteArr = (remote && remote[store]) || [];
     const map = new Map();
     local.forEach((item) => map.set(item.id, item));
+    const toWrite = [];
     remoteArr.forEach((item) => {
       const existing = map.get(item.id);
       if (!existing || (item.updatedAt || 0) > (existing.updatedAt || 0)) {
         map.set(item.id, item);
+        toWrite.push(item); // only records where the remote copy actually wins need writing back
       }
     });
-    const mergedArr = Array.from(map.values());
-    for (const item of mergedArr) {
+    for (const item of toWrite) {
       await DB.put(store, item);
     }
-    mergedSnapshot[store] = mergedArr;
+    mergedSnapshot[store] = Array.from(map.values());
   }
   return mergedSnapshot;
 }

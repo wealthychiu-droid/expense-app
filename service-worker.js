@@ -1,4 +1,4 @@
-const CACHE_NAME = 'expense-tracker-v12';
+const CACHE_NAME = 'expense-tracker-v14';
 const APP_SHELL = [
   './',
   './index.html',
@@ -13,7 +13,16 @@ const APP_SHELL = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
+    caches.open(CACHE_NAME).then((cache) => {
+      // Explicitly bypass the browser's HTTP cache when fetching each app-shell
+      // asset, so a new service worker always caches genuinely fresh bytes
+      // instead of whatever the browser happened to have cached already.
+      return Promise.all(
+        APP_SHELL.map((url) =>
+          fetch(url, { cache: 'reload' }).then((res) => cache.put(url, res))
+        )
+      );
+    })
   );
   self.skipWaiting();
 });

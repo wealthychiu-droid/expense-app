@@ -1,6 +1,6 @@
 // app.js - UI logic for the expense tracker
 
-const APP_VERSION = 'v12';
+const APP_VERSION = 'v14';
 
 const CATEGORY_COLORS = [
   { bg: '#fde2e2', fg: '#8f2020' }, // red
@@ -704,12 +704,17 @@ async function afterSyncRefresh() {
 
 async function performSync(silent) {
   if (!Drive.isConnected() || !navigator.onLine) return;
+  $('#syncIndicator').classList.add('syncing');
+  $('#syncStatusText').textContent = '同步中…';
   try {
     await Drive.sync();
     await afterSyncRefresh();
   } catch (err) {
     console.error('sync failed', err);
     if (!silent) alert('同步失敗，稍後會自動再試一次');
+  } finally {
+    $('#syncIndicator').classList.remove('syncing');
+    updateDriveStatusUI();
   }
 }
 

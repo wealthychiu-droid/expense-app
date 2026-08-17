@@ -54,6 +54,11 @@ button, input, select {
   gap: 4px;
 }
 .sync-indicator.online { color: var(--success); }
+.sync-indicator.syncing .icon { animation: sync-spin 1s linear infinite; display: inline-block; }
+@keyframes sync-spin {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(180deg); }
+}
 
 #app {
   max-width: 480px;
