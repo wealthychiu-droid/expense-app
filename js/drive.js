@@ -65,6 +65,7 @@ async function ensureToken(interactive) {
 async function driveFetch(url, options) {
   options = options || {};
   options.headers = Object.assign({}, options.headers, { Authorization: 'Bearer ' + accessToken });
+  if (!options.cache) options.cache = 'no-store';
   const res = await fetch(url, options);
   if (!res.ok) {
     const text = await res.text().catch(() => '');
