@@ -1,5 +1,7 @@
 // app.js - UI logic for the expense tracker
 
+const APP_VERSION = 'v10';
+
 const CATEGORY_COLORS = [
   { bg: '#fde2e2', fg: '#8f2020' }, // red
   { bg: '#fde9d2', fg: '#8a4a06' }, // orange
@@ -843,6 +845,7 @@ async function init() {
   initDriveUI();
   initPullToRefresh();
   updateSheetFieldVisibility();
+  $('#appVersionText').textContent = APP_VERSION;
 
   await updateMonthSummary();
   await renderHistory();
