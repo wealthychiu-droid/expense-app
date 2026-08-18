@@ -1,6 +1,6 @@
 // app.js - UI logic for the expense tracker
 
-const APP_VERSION = 'v17';
+const APP_VERSION = 'v18';
 
 const CATEGORY_COLORS = [
   { bg: '#fde2e2', fg: '#8f2020' }, // red
@@ -208,7 +208,8 @@ function renderCategoryGrid() {
   });
 
   if (!state.selectedCategoryId && list.length > 0) {
-    state.selectedCategoryId = list[0].id;
+    const defaultCat = list.find((c) => c.isDefault);
+    state.selectedCategoryId = defaultCat ? defaultCat.id : list[0].id;
     renderCategoryGrid();
   }
 }
