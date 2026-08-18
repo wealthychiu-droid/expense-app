@@ -1,6 +1,6 @@
 // app.js - UI logic for the expense tracker
 
-const APP_VERSION = 'v18';
+const APP_VERSION = 'v19';
 
 const CATEGORY_COLORS = [
   { bg: '#fde2e2', fg: '#8f2020' }, // red
@@ -81,6 +81,7 @@ function initTabs() {
       $$('.tab-btn').forEach((b) => b.classList.toggle('active', b === btn));
       $$('.pane').forEach((p) => p.classList.toggle('active', p.id === 'pane-' + tab));
       if (tab === 'settings') renderManagers();
+      maybeSync();
     });
   });
 }
@@ -713,6 +714,29 @@ async function normalizeAllOrders() {
   await normalizeOrderForList('merchants', merchants);
 }
 
+async function normalizeDefaultForList(storeName, items) {
+  const defaults = items.filter((i) => i.isDefault);
+  if (defaults.length <= 1) return;
+  defaults.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const keep = defaults[0];
+  const now = Date.now();
+  for (let i = 1; i < defaults.length; i++) {
+    defaults[i].isDefault = false;
+    defaults[i].updatedAt = now;
+    await DB.put(storeName, defaults[i]);
+  }
+}
+
+async function normalizeAllDefaults() {
+  const categories = (await DB.getAll('categories')).filter((c) => !c.isDeleted);
+  const accounts = (await DB.getAll('accounts')).filter((a) => !a.isDeleted);
+  const recipients = (await DB.getAll('recipients')).filter((r) => !r.isDeleted);
+  await normalizeDefaultForList('categories', categories.filter((c) => c.type === 'expense'));
+  await normalizeDefaultForList('categories', categories.filter((c) => c.type === 'income'));
+  await normalizeDefaultForList('accounts', accounts);
+  await normalizeDefaultForList('recipients', recipients);
+}
+
 // ---------- Google Drive sync UI ----------
 function updateDriveStatusUI() {
   const connected = Drive.isConnected();
@@ -727,9 +751,11 @@ function updateDriveStatusUI() {
   $('#syncStatusText').textContent = navigator.onLine ? (connected ? '線上' : '離線儲存') : '離線';
 }
 
-async function afterSyncRefresh() {
+async function afterSyncRefresh(forceRender) {
+  await normalizeAllOrders();
+  await normalizeAllDefaults();
   await refreshAllLists();
-  if (!$('#pane-settings').classList.contains('active')) {
+  if (forceRender || !$('#pane-settings').classList.contains('active')) {
     renderManagers();
   }
   await updateMonthSummary();
@@ -743,7 +769,7 @@ async function performSync(silent) {
   $('#syncStatusText').textContent = '同步中…';
   try {
     await Drive.sync();
-    await afterSyncRefresh();
+    await afterSyncRefresh(!silent);
   } catch (err) {
     console.error('sync failed', err);
     if (!silent) alert('同步失敗，稍後會自動再試一次');
@@ -768,7 +794,7 @@ function initDriveUI() {
     $('#driveConnectBtn').textContent = '連接中…';
     try {
       await Drive.connect();
-      await afterSyncRefresh();
+      await afterSyncRefresh(true);
     } catch (err) {
       alert('連接失敗，請再試一次：' + (err && err.message ? err.message : err));
     } finally {
@@ -878,6 +904,7 @@ async function init() {
   await migrateCategoryColors();
   await migrateMerchantsFromLegacyField();
   await normalizeAllOrders();
+  await normalizeAllDefaults();
   await loadLists();
 
   initTabs();
