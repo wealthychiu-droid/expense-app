@@ -1,5 +1,5 @@
-// analysis.js - 分析分頁：分類統計 + 趨勢，含日期範圍選擇與明細下鑽
-// Reuses globals from app.js: $, $$, fmtMoney, escapeHtml, categoryColor, todayStr, pad2, state, DB
+// analysis.js - 統計／趨勢分頁，含日期範圍選擇與明細下鑽
+// Reuses globals from app.js: $, $$, fmtMoney, escapeHtml, categoryColor, todayStr, pad2, weekdayChar, state, DB, openSheet
 
 const RANGE_PRESETS = [
   { key: 'all', label: '全部時間' },
@@ -9,8 +9,11 @@ const RANGE_PRESETS = [
   { key: 'lastWeek', label: '上週' },
   { key: 'thisMonth', label: '本月' },
   { key: 'lastMonth', label: '上月' },
+  { key: 'thisQuarter', label: '本季' },
   { key: 'thisYear', label: '今年' },
 ];
+
+const STATS_QUICK_PRESETS = ['thisWeek', 'thisMonth', 'thisQuarter', 'thisYear'];
 
 const DIMENSION_LABELS = { category: '分類', recipient: '對象', merchant: '商家', account: '帳戶' };
 
@@ -35,6 +38,7 @@ function presetRange(preset) {
     case 'lastWeek': { const s = startOfWeekDate(now); s.setDate(s.getDate() - 7); const e = new Date(s); e.setDate(e.getDate() + 6); return { start: fmtDateStr(s), end: fmtDateStr(e) }; }
     case 'thisMonth': { const s = new Date(now.getFullYear(), now.getMonth(), 1); return { start: fmtDateStr(s), end: fmtDateStr(now) }; }
     case 'lastMonth': { const s = new Date(now.getFullYear(), now.getMonth() - 1, 1); const e = new Date(now.getFullYear(), now.getMonth(), 0); return { start: fmtDateStr(s), end: fmtDateStr(e) }; }
+    case 'thisQuarter': { const q = Math.floor(now.getMonth() / 3); const s = new Date(now.getFullYear(), q * 3, 1); return { start: fmtDateStr(s), end: fmtDateStr(now) }; }
     case 'thisYear': { const s = new Date(now.getFullYear(), 0, 1); return { start: fmtDateStr(s), end: fmtDateStr(now) }; }
     case 'all':
     default:
@@ -85,15 +89,12 @@ function resolveDimensionName(dimension, id) {
 }
 
 const Analysis = (function () {
-  let activeSubtab = 'stats';
   let dimension = 'category';
-  let statsRange = { preset: 'thisMonth', ...presetRange('thisMonth') };
+  let statsRange = { preset: 'thisWeek', ...presetRange('thisWeek') };
   let trendRange = { preset: 'all', ...presetRange('all') };
   let trendGranularity = 'month';
   let rangeSheetTarget = null;
-  let detailSource = null; // { kind: 'dimension'|'bucket', ... } for back-context (not persisted across sessions)
-
-  const $$$ = (id) => document.getElementById(id);
+  let detailReturnTab = 'stats';
 
   async function getFilteredTransactions(range, extra) {
     const txns = (await DB.getAll('transactions')).filter((t) => !t.isDeleted);
@@ -169,14 +170,19 @@ const Analysis = (function () {
         </div>
         <div class="stats-row-bar-track"><div class="stats-row-bar-fill" style="width:${pct}%;background:${e.color.bg};"></div><span class="stats-row-count">${e.count}</span></div>
       `;
-      row.addEventListener('click', () => openDetailByDimension(dim, e.id, e.name, type));
+      row.addEventListener('click', () => openDetailByDimension(dim, e.id, e.name, type, 'stats'));
       container.appendChild(row);
     });
   }
 
+  function updateStatsQuickButtons() {
+    $$('.quick-range-btn').forEach((b) => b.classList.toggle('active', b.dataset.preset === statsRange.preset || (b.dataset.preset === 'custom' && statsRange.preset === 'custom')));
+  }
+
   async function renderStats() {
+    updateStatsQuickButtons();
     const label = await describeRange(statsRange);
-    $('#statsRangeBtn').innerHTML = `${escapeHtml(label.title)}${label.sub ? `<span class="range-sub">${escapeHtml(label.sub)}</span>` : ''}`;
+    $('#statsRangeSubDisplay').textContent = label.sub || '';
 
     const showIncome = dimension === 'category' || dimension === 'account';
     $('#statsIncomeBlock').hidden = !showIncome;
@@ -300,17 +306,15 @@ const Analysis = (function () {
     $$('.trend-table-row[data-key]').forEach((row) => {
       row.addEventListener('click', () => {
         const key = row.dataset.key;
-        if (key === '__total__') {
-          openDetailByRange(trendRange, `${bucketLabelFor('', trendGranularity) ? '' : ''}總計`);
-        } else {
-          openDetailByBucket(key, trendGranularity);
-        }
+        if (key === '__total__') openDetailByRange(trendRange, '總計', 'trend');
+        else openDetailByBucket(key, trendGranularity);
       });
     });
   }
 
   // ---------- Detail drill-down ----------
-  async function openDetailByDimension(dim, id, name, type) {
+  async function openDetailByDimension(dim, id, name, type, fromTab) {
+    detailReturnTab = fromTab;
     const label = await describeRange(statsRange);
     const extra = { type, dimension: dim, dimId: id === '__none__' ? null : id };
     const txns = await getFilteredTransactions(statsRange, extra);
@@ -327,20 +331,22 @@ const Analysis = (function () {
   }
 
   async function openDetailByBucket(key, granularity) {
+    detailReturnTab = 'trend';
     const range = bucketRangeFor(key, granularity);
     const txns = await getFilteredTransactions(range);
     showDetail(bucketLabelFor(key, granularity), `${range.start} ~ ${range.end}`, txns, null);
   }
 
-  async function openDetailByRange(range, title) {
+  async function openDetailByRange(range, title, fromTab) {
+    detailReturnTab = fromTab;
     const txns = await getFilteredTransactions(range);
     const label = await describeRange(range);
     showDetail(title || label.title, label.sub, txns, null);
   }
 
   function showDetail(title, sub, txns, sign) {
-    $('#analysisMain').hidden = true;
     $('#analysisDetail').hidden = false;
+
     $('#analysisDetailTitle').innerHTML = `${escapeHtml(title)}${sub ? `<span class="range-sub">${escapeHtml(sub)}</span>` : ''}`;
 
     const totalExpense = txns.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
@@ -394,25 +400,28 @@ const Analysis = (function () {
 
   function closeDetail() {
     $('#analysisDetail').hidden = true;
-    $('#analysisMain').hidden = false;
   }
 
   // ---------- Range picker sheet ----------
-  function openRangeSheet(target) {
+  function openRangeSheet(target, hidePresets) {
     rangeSheetTarget = target;
     const current = target === 'stats' ? statsRange : trendRange;
     const grid = $('#rangePresetGrid');
+    grid.hidden = !!hidePresets;
     grid.innerHTML = '';
-    RANGE_PRESETS.forEach((p) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'range-preset-btn' + (current.preset === p.key ? ' selected' : '');
-      btn.textContent = p.label;
-      btn.addEventListener('click', () => applyPreset(p.key));
-      grid.appendChild(btn);
-    });
+    if (!hidePresets) {
+      RANGE_PRESETS.forEach((p) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'range-preset-btn' + (current.preset === p.key ? ' selected' : '');
+        btn.textContent = p.label;
+        btn.addEventListener('click', () => applyPreset(p.key));
+        grid.appendChild(btn);
+      });
+    }
     $('#rangeStartInput').value = current.start || '';
     $('#rangeEndInput').value = current.end || '';
+    delete $('#rangeStartInput').dataset.pendingPreset;
     $('#rangeSheetBackdrop').hidden = false;
     $('#rangeSheet').hidden = false;
   }
@@ -439,14 +448,18 @@ const Analysis = (function () {
     closeRangeSheet();
   }
 
-  // ---------- Sub-tab & dimension switching ----------
-  function initSubtabs() {
-    $$('.subtab-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        activeSubtab = btn.dataset.subtab;
-        $$('.subtab-btn').forEach((b) => b.classList.toggle('active', b === btn));
-        $('#analysisStats').classList.toggle('active', activeSubtab === 'stats');
-        $('#analysisTrend').classList.toggle('active', activeSubtab === 'trend');
+  // ---------- Init & show hooks ----------
+  let initialized = false;
+  function initOnce() {
+    if (initialized) return;
+    initialized = true;
+
+    $$('.quick-range-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const preset = btn.dataset.preset;
+        if (preset === 'custom') { openRangeSheet('stats', true); return; }
+        statsRange = { preset, ...presetRange(preset) };
+        await renderStats();
       });
     });
     $$('.dim-btn').forEach((btn) => {
@@ -463,22 +476,24 @@ const Analysis = (function () {
         await renderTrend();
       });
     });
-    $('#statsRangeBtn').addEventListener('click', () => openRangeSheet('stats'));
-    $('#trendRangeBtn').addEventListener('click', () => openRangeSheet('trend'));
+    $('#trendRangeBtn').addEventListener('click', () => openRangeSheet('trend', false));
     $('#rangeSheetBackdrop').addEventListener('click', closeRangeSheet);
     $('#rangeConfirmBtn').addEventListener('click', confirmRange);
     $('#analysisDetailBack').addEventListener('click', closeDetail);
   }
 
-  let initialized = false;
-  async function onShow() {
-    if (!initialized) { initSubtabs(); initialized = true; }
+  async function onShowStats() {
+    initOnce();
     closeDetail();
     await renderStats();
+  }
+  async function onShowTrend() {
+    initOnce();
+    closeDetail();
     await renderTrend();
   }
 
-  return { onShow };
+  return { onShowStats, onShowTrend };
 })();
 
 window.Analysis = Analysis;

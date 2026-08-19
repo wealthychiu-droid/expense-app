@@ -1,6 +1,6 @@
 // app.js - UI logic for the expense tracker
 
-const APP_VERSION = 'v20';
+const APP_VERSION = 'v21';
 
 const CATEGORY_COLORS = [
   { bg: '#fde2e2', fg: '#8f2020' }, // red
@@ -81,7 +81,8 @@ function initTabs() {
       $$('.tab-btn').forEach((b) => b.classList.toggle('active', b === btn));
       $$('.pane').forEach((p) => p.classList.toggle('active', p.id === 'pane-' + tab));
       if (tab === 'settings') renderManagers();
-      if (tab === 'analysis' && window.Analysis) window.Analysis.onShow();
+      if (tab === 'stats' && window.Analysis) window.Analysis.onShowStats();
+      if (tab === 'trend' && window.Analysis) window.Analysis.onShowTrend();
       maybeSync();
     });
   });
@@ -899,6 +900,66 @@ function initPullToRefresh() {
   });
 }
 
+function initFabDrag() {
+  const fab = $('#fabAdd');
+  const saved = JSON.parse(localStorage.getItem('fabPos') || 'null');
+  if (saved) {
+    const maxLeft = window.innerWidth - fab.offsetWidth - 4;
+    const maxTop = window.innerHeight - fab.offsetHeight - 4;
+    fab.style.right = 'auto';
+    fab.style.bottom = 'auto';
+    fab.style.left = Math.max(4, Math.min(saved.left, maxLeft)) + 'px';
+    fab.style.top = Math.max(4, Math.min(saved.top, maxTop)) + 'px';
+  }
+  let startX = 0, startY = 0, startLeft = 0, startTop = 0, dragging = false, moved = false;
+
+  fab.addEventListener('touchstart', (e) => {
+    const rect = fab.getBoundingClientRect();
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    startLeft = rect.left;
+    startTop = rect.top;
+    dragging = true;
+    moved = false;
+  }, { passive: true });
+
+  fab.addEventListener('touchmove', (e) => {
+    if (!dragging) return;
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) moved = true;
+    if (moved) {
+      e.preventDefault();
+      const maxLeft = window.innerWidth - fab.offsetWidth - 4;
+      const maxTop = window.innerHeight - fab.offsetHeight - 4;
+      const newLeft = Math.max(4, Math.min(startLeft + dx, maxLeft));
+      const newTop = Math.max(4, Math.min(startTop + dy, maxTop));
+      fab.style.right = 'auto';
+      fab.style.bottom = 'auto';
+      fab.style.left = newLeft + 'px';
+      fab.style.top = newTop + 'px';
+    }
+  }, { passive: false });
+
+  fab.addEventListener('touchend', () => {
+    dragging = false;
+    if (moved) {
+      const rect = fab.getBoundingClientRect();
+      localStorage.setItem('fabPos', JSON.stringify({ left: rect.left, top: rect.top }));
+    }
+  });
+
+  fab.addEventListener('click', (e) => {
+    if (moved) {
+      e.preventDefault();
+      e.stopPropagation();
+      moved = false;
+      return;
+    }
+    openSheet(null);
+  });
+}
+
 // ---------- Init ----------
 async function init() {
   await DB.seedDefaults();
@@ -922,7 +983,7 @@ async function init() {
 
   if (Drive.isConnected()) performSync(true);
 
-  $('#fabAdd').addEventListener('click', () => openSheet(null));
+  initFabDrag();
   $('#sheetBackdrop').addEventListener('click', closeSheet);
   $('#saveBtn').addEventListener('click', handleSave);
   $('#deleteBtn').addEventListener('click', handleDelete);

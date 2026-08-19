@@ -436,15 +436,13 @@ button, input, select {
 .tab-btn.active { color: var(--accent); }
 
 /* ---- Analysis tab ---- */
-.analysis-subtabs { display: flex; gap: 8px; margin-bottom: 16px; }
-.subtab-btn {
-  flex: 1; padding: 10px; font-size: 14px; border-radius: var(--radius);
-  border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+.stats-quick-range { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+.quick-range-btn {
+  flex: 1; min-width: 64px; padding: 9px 4px; font-size: 12.5px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary); white-space: nowrap;
 }
-.subtab-btn.active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-bg); font-weight: 600; }
-
-.analysis-subpane { display: none; }
-.analysis-subpane.active { display: block; }
+.quick-range-btn.active { background: var(--text-primary); color: #fff; border-color: var(--text-primary); font-weight: 600; }
+.range-sub-display { font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 16px; }
 
 .range-btn {
   width: 100%; text-align: center; padding: 12px; margin-bottom: 12px;
@@ -509,7 +507,12 @@ button, input, select {
 .trend-table-row .neg { color: var(--danger); }
 .trend-table-row .pos { color: var(--success); }
 
-.analysis-detail { }
+.analysis-detail {
+  position: fixed; inset: 0; z-index: 25;
+  background: var(--surface-0);
+  overflow-y: auto;
+  padding: calc(16px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
+}
 .back-btn {
   border: none; background: none; color: var(--accent); font-size: 15px; padding: 4px 0 12px; font-weight: 600;
 }
@@ -530,6 +533,33 @@ button, input, select {
   .entry-sheet { max-width: 480px; left: 50%; transform: translateX(-50%); border-radius: 18px 18px 0 0; }
   .chip-grid { grid-template-columns: repeat(6, 1fr); }
   .settings-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+  /* 平板字體加大 */
+  .app-title { font-size: 21px; }
+  .sync-indicator, .summary-label, .amount-label, .field-label,
+  .history-date-label, .history-row-sub, .drive-last-sync, .badge,
+  .app-version, .range-sub-display, .range-sub, .stats-row-pct,
+  .legend-item, .settings-hint { font-size: 14px; }
+  .summary-value { font-size: 28px; }
+  .summary-row-sub .summary-value { font-size: 20px; }
+  .amount-input { font-size: 38px; }
+  .type-btn-v, .field-select, .text-input, .save-btn, .delete-entry-btn,
+  .confirm-btn, .history-row-title, .history-row-amount, .empty-state,
+  .manager-row-name, .delete-btn, .add-btn, .date-chip, .date-selected-label,
+  .range-btn, .dim-btn, .gran-btn, .quick-range-btn, .stats-row-name,
+  .stats-row-amount, .trend-table-row, .detail-summary, .back-btn,
+  .range-preset-btn { font-size: 16px; }
+  .save-btn { font-size: 18px; }
+  .chip-name { font-size: 13px; }
+  .chip-icon { font-size: 21px; }
+  .chip-pill { font-size: 15px; }
+  .confirm-text { font-size: 19px; }
+  .settings-title, .stats-block-title { font-size: 18px; }
+  .donut-hole { font-size: 17px; }
+  .detail-title { font-size: 19px; }
+  .default-btn { font-size: 13px; }
+  .tab-btn { font-size: 13px; }
+  .tab-btn .icon { font-size: 21px; }
 }
 
 @media (min-width: 700px) and (orientation: landscape) {

@@ -52,61 +52,52 @@
   </section>
 
   <!-- 分析畫面（預留） -->
-  <section id="pane-analysis" class="pane">
-    <div id="analysisMain">
-      <div class="analysis-subtabs" id="analysisSubtabs">
-        <button type="button" class="subtab-btn active" data-subtab="stats">分類統計</button>
-        <button type="button" class="subtab-btn" data-subtab="trend">趨勢</button>
-      </div>
+  <section id="pane-stats" class="pane">
+    <div class="stats-quick-range" id="statsQuickRange">
+      <button type="button" class="quick-range-btn" data-preset="thisWeek">本週</button>
+      <button type="button" class="quick-range-btn" data-preset="thisMonth">本月</button>
+      <button type="button" class="quick-range-btn" data-preset="thisQuarter">本季</button>
+      <button type="button" class="quick-range-btn" data-preset="thisYear">今年</button>
+      <button type="button" class="quick-range-btn" id="statsCustomBtn" data-preset="custom">自訂日期</button>
+    </div>
+    <div class="range-sub-display" id="statsRangeSubDisplay"></div>
 
-      <div id="analysisStats" class="analysis-subpane active">
-        <button type="button" id="statsRangeBtn" class="range-btn"></button>
-        <div class="dimension-tabs" id="dimensionTabs">
-          <button type="button" class="dim-btn active" data-dim="category">分類</button>
-          <button type="button" class="dim-btn" data-dim="recipient">對象</button>
-          <button type="button" class="dim-btn" data-dim="merchant">商家</button>
-          <button type="button" class="dim-btn" data-dim="account">帳戶</button>
-        </div>
-
-        <div id="statsExpenseBlock" class="stats-block">
-          <h3 class="stats-block-title">支出</h3>
-          <div class="donut-wrap"><div id="statsExpenseDonut" class="donut"><div class="donut-hole"><span id="statsExpenseTotal" class="donut-total"></span></div></div></div>
-          <div id="statsExpenseList" class="stats-list"></div>
-        </div>
-
-        <div id="statsIncomeBlock" class="stats-block">
-          <h3 class="stats-block-title">收入</h3>
-          <div class="donut-wrap"><div id="statsIncomeDonut" class="donut"><div class="donut-hole"><span id="statsIncomeTotal" class="donut-total"></span></div></div></div>
-          <div id="statsIncomeList" class="stats-list"></div>
-        </div>
-
-        <div id="statsEmpty" class="empty-state" hidden>這段期間沒有資料</div>
-      </div>
-
-      <div id="analysisTrend" class="analysis-subpane">
-        <button type="button" id="trendRangeBtn" class="range-btn"></button>
-        <div class="granularity-tabs" id="granularityTabs">
-          <button type="button" class="gran-btn" data-g="day">日</button>
-          <button type="button" class="gran-btn" data-g="week">週</button>
-          <button type="button" class="gran-btn active" data-g="month">月</button>
-          <button type="button" class="gran-btn" data-g="year">年</button>
-        </div>
-        <div id="trendChartWrap" class="trend-chart-wrap"></div>
-        <div id="trendTable" class="trend-table"></div>
-        <div id="trendEmpty" class="empty-state" hidden>這段期間沒有資料</div>
-      </div>
+    <div class="dimension-tabs" id="dimensionTabs">
+      <button type="button" class="dim-btn active" data-dim="category">分類</button>
+      <button type="button" class="dim-btn" data-dim="recipient">對象</button>
+      <button type="button" class="dim-btn" data-dim="merchant">商家</button>
+      <button type="button" class="dim-btn" data-dim="account">帳戶</button>
     </div>
 
-    <div id="analysisDetail" class="analysis-detail" hidden>
-      <button type="button" id="analysisDetailBack" class="back-btn">‹ 返回</button>
-      <div id="analysisDetailTitle" class="detail-title"></div>
-      <div id="analysisDetailSummary" class="detail-summary"></div>
-      <div id="analysisDetailList" class="history-list"></div>
-      <div id="analysisDetailEmpty" class="empty-state" hidden>這裡沒有紀錄</div>
+    <div id="statsExpenseBlock" class="stats-block">
+      <h3 class="stats-block-title">支出</h3>
+      <div class="donut-wrap"><div id="statsExpenseDonut" class="donut"><div class="donut-hole"><span id="statsExpenseTotal" class="donut-total"></span></div></div></div>
+      <div id="statsExpenseList" class="stats-list"></div>
     </div>
+
+    <div id="statsIncomeBlock" class="stats-block">
+      <h3 class="stats-block-title">收入</h3>
+      <div class="donut-wrap"><div id="statsIncomeDonut" class="donut"><div class="donut-hole"><span id="statsIncomeTotal" class="donut-total"></span></div></div></div>
+      <div id="statsIncomeList" class="stats-list"></div>
+    </div>
+
+    <div id="statsEmpty" class="empty-state" hidden>這段期間沒有資料</div>
   </section>
 
-  <!-- 時間範圍選擇（分類統計／趨勢共用） -->
+  <section id="pane-trend" class="pane">
+    <button type="button" id="trendRangeBtn" class="range-btn"></button>
+    <div class="granularity-tabs" id="granularityTabs">
+      <button type="button" class="gran-btn" data-g="day">日</button>
+      <button type="button" class="gran-btn" data-g="week">週</button>
+      <button type="button" class="gran-btn active" data-g="month">月</button>
+      <button type="button" class="gran-btn" data-g="year">年</button>
+    </div>
+    <div id="trendChartWrap" class="trend-chart-wrap"></div>
+    <div id="trendTable" class="trend-table"></div>
+    <div id="trendEmpty" class="empty-state" hidden>這段期間沒有資料</div>
+  </section>
+
+  <!-- 時間範圍選擇（統計的「自訂日期」／趨勢共用） -->
   <div id="rangeSheetBackdrop" class="sheet-backdrop" hidden></div>
   <div id="rangeSheet" class="entry-sheet" hidden>
     <div class="sheet-handle"></div>
@@ -124,6 +115,15 @@
       </div>
       <button type="button" id="rangeConfirmBtn" class="save-btn">確認</button>
     </div>
+  </div>
+
+  <!-- 分析明細下鑽（統計/趨勢共用的全螢幕覆蓋層） -->
+  <div id="analysisDetail" class="analysis-detail" hidden>
+    <button type="button" id="analysisDetailBack" class="back-btn">‹ 返回</button>
+    <div id="analysisDetailTitle" class="detail-title"></div>
+    <div id="analysisDetailSummary" class="detail-summary"></div>
+    <div id="analysisDetailList" class="history-list"></div>
+    <div id="analysisDetailEmpty" class="empty-state" hidden>這裡沒有紀錄</div>
   </div>
 
   <!-- 設定畫面 -->
@@ -206,7 +206,8 @@
 
 <nav class="tabbar">
   <button type="button" class="tab-btn active" data-tab="home"><i class="icon">⌂</i><span>首頁</span></button>
-  <button type="button" class="tab-btn" data-tab="analysis"><i class="icon">▤</i><span>分析</span></button>
+  <button type="button" class="tab-btn" data-tab="stats"><i class="icon">◔</i><span>統計</span></button>
+  <button type="button" class="tab-btn" data-tab="trend"><i class="icon">▤</i><span>趨勢</span></button>
   <button type="button" class="tab-btn" data-tab="settings"><i class="icon">⚙</i><span>設定</span></button>
 </nav>
 
