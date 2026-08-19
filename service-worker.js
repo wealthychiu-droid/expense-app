@@ -1,4 +1,4 @@
-const CACHE_NAME = 'expense-tracker-v19';
+const CACHE_NAME = 'expense-tracker-v20';
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const APP_SHELL = [
   './js/db.js',
   './js/drive.js',
   './js/app.js',
+  './js/analysis.js',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',

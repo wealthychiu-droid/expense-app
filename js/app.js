@@ -1,6 +1,6 @@
 // app.js - UI logic for the expense tracker
 
-const APP_VERSION = 'v19';
+const APP_VERSION = 'v20';
 
 const CATEGORY_COLORS = [
   { bg: '#fde2e2', fg: '#8f2020' }, // red
@@ -81,6 +81,7 @@ function initTabs() {
       $$('.tab-btn').forEach((b) => b.classList.toggle('active', b === btn));
       $$('.pane').forEach((p) => p.classList.toggle('active', p.id === 'pane-' + tab));
       if (tab === 'settings') renderManagers();
+      if (tab === 'analysis' && window.Analysis) window.Analysis.onShow();
       maybeSync();
     });
   });
