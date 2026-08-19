@@ -88,6 +88,23 @@ function resolveDimensionName(dimension, id) {
   return found ? found.name : '（已刪除）';
 }
 
+const AUTO_GRANULARITY_BY_PRESET = {
+  thisWeek: 'day',
+  thisMonth: 'day',
+  thisQuarter: 'week',
+  thisYear: 'month',
+};
+
+function pickGranularity(range, resolvedStart, resolvedEnd) {
+  if (AUTO_GRANULARITY_BY_PRESET[range.preset]) return AUTO_GRANULARITY_BY_PRESET[range.preset];
+  if (!resolvedStart || !resolvedEnd) return 'month';
+  const days = Math.round((new Date(resolvedEnd) - new Date(resolvedStart)) / 86400000) + 1;
+  if (days <= 31) return 'day';
+  if (days <= 120) return 'week';
+  if (days <= 730) return 'month';
+  return 'year';
+}
+
 const Analysis = (function () {
   let dimension = 'category';
   let statsRange = { preset: 'thisWeek', ...presetRange('thisWeek') };
@@ -232,6 +249,13 @@ const Analysis = (function () {
     updateQuickButtons('trendQuickRange', trendRange.preset);
     const label = await describeRange(trendRange);
     $('#trendRangeSubDisplay').textContent = label.sub || '';
+
+    let resolvedStart = trendRange.start, resolvedEnd = trendRange.end;
+    if (trendRange.preset === 'all') {
+      const bounds = await actualDataBounds();
+      if (bounds) { resolvedStart = bounds.min; resolvedEnd = bounds.max; }
+    }
+    trendGranularity = pickGranularity(trendRange, resolvedStart, resolvedEnd);
 
     const txns = await getFilteredTransactions(trendRange);
     $('#trendEmpty').hidden = txns.length > 0;
@@ -476,13 +500,6 @@ const Analysis = (function () {
         dimension = btn.dataset.dim;
         $$('.dim-btn').forEach((b) => b.classList.toggle('active', b === btn));
         await renderStats();
-      });
-    });
-    $$('.gran-btn').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        trendGranularity = btn.dataset.g;
-        $$('.gran-btn').forEach((b) => b.classList.toggle('active', b === btn));
-        await renderTrend();
       });
     });
     $('#rangeSheetBackdrop').addEventListener('click', closeRangeSheet);
