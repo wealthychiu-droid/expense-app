@@ -16,8 +16,11 @@
 
 <header class="topbar">
   <h1 class="app-title">記帳</h1>
-  <div class="sync-indicator" id="syncIndicator" title="尚未連線 Google Drive">
-    <i class="icon">☁</i><span id="syncStatusText">離線</span>
+  <div class="topbar-right">
+    <button type="button" id="fontScaleBtn" class="font-scale-btn" title="調整字體大小">Aa</button>
+    <div class="sync-indicator" id="syncIndicator" title="尚未連線 Google Drive">
+      <i class="icon">☁</i><span id="syncStatusText">離線</span>
+    </div>
   </div>
 </header>
 
@@ -85,7 +88,15 @@
   </section>
 
   <section id="pane-trend" class="pane">
-    <button type="button" id="trendRangeBtn" class="range-btn"></button>
+    <div class="stats-quick-range" id="trendQuickRange">
+      <button type="button" class="quick-range-btn" data-preset="thisWeek">本週</button>
+      <button type="button" class="quick-range-btn" data-preset="thisMonth">本月</button>
+      <button type="button" class="quick-range-btn" data-preset="thisQuarter">本季</button>
+      <button type="button" class="quick-range-btn" data-preset="thisYear">今年</button>
+      <button type="button" class="quick-range-btn" id="trendCustomBtn" data-preset="custom">自訂日期</button>
+    </div>
+    <div class="range-sub-display" id="trendRangeSubDisplay"></div>
+
     <div class="granularity-tabs" id="granularityTabs">
       <button type="button" class="gran-btn" data-g="day">日</button>
       <button type="button" class="gran-btn" data-g="week">週</button>

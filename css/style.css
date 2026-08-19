@@ -46,6 +46,19 @@ button, input, select {
 
 .app-title { font-size: 18px; font-weight: 600; margin: 0; }
 
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+
+.font-scale-btn {
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: var(--radius);
+}
+.font-scale-btn:active { background: var(--accent-bg); color: var(--accent); }
+
 .sync-indicator {
   font-size: 12px;
   color: var(--text-muted);

@@ -1,6 +1,6 @@
 // app.js - UI logic for the expense tracker
 
-const APP_VERSION = 'v21';
+const APP_VERSION = 'v22';
 
 const CATEGORY_COLORS = [
   { bg: '#fde2e2', fg: '#8f2020' }, // red
@@ -960,6 +960,25 @@ function initFabDrag() {
   });
 }
 
+function initFontScale() {
+  const scales = [1, 1.15, 1.3];
+  const labels = ['A', 'A+', 'A++'];
+  let idx = parseInt(localStorage.getItem('fontScaleIdx') || '0', 10);
+  if (isNaN(idx) || idx < 0 || idx >= scales.length) idx = 0;
+
+  function apply() {
+    document.documentElement.style.zoom = scales[idx];
+    $('#fontScaleBtn').textContent = labels[idx];
+    localStorage.setItem('fontScaleIdx', String(idx));
+  }
+  apply();
+
+  $('#fontScaleBtn').addEventListener('click', () => {
+    idx = (idx + 1) % scales.length;
+    apply();
+  });
+}
+
 // ---------- Init ----------
 async function init() {
   await DB.seedDefaults();
@@ -984,6 +1003,7 @@ async function init() {
   if (Drive.isConnected()) performSync(true);
 
   initFabDrag();
+  initFontScale();
   $('#sheetBackdrop').addEventListener('click', closeSheet);
   $('#saveBtn').addEventListener('click', handleSave);
   $('#deleteBtn').addEventListener('click', handleDelete);

@@ -91,7 +91,7 @@ function resolveDimensionName(dimension, id) {
 const Analysis = (function () {
   let dimension = 'category';
   let statsRange = { preset: 'thisWeek', ...presetRange('thisWeek') };
-  let trendRange = { preset: 'all', ...presetRange('all') };
+  let trendRange = { preset: 'thisMonth', ...presetRange('thisMonth') };
   let trendGranularity = 'month';
   let rangeSheetTarget = null;
   let detailReturnTab = 'stats';
@@ -175,12 +175,12 @@ const Analysis = (function () {
     });
   }
 
-  function updateStatsQuickButtons() {
-    $$('.quick-range-btn').forEach((b) => b.classList.toggle('active', b.dataset.preset === statsRange.preset || (b.dataset.preset === 'custom' && statsRange.preset === 'custom')));
+  function updateQuickButtons(containerId, currentPreset) {
+    $$(`#${containerId} .quick-range-btn`).forEach((b) => b.classList.toggle('active', b.dataset.preset === currentPreset || (b.dataset.preset === 'custom' && currentPreset === 'custom')));
   }
 
   async function renderStats() {
-    updateStatsQuickButtons();
+    updateQuickButtons('statsQuickRange', statsRange.preset);
     const label = await describeRange(statsRange);
     $('#statsRangeSubDisplay').textContent = label.sub || '';
 
@@ -229,8 +229,9 @@ const Analysis = (function () {
   }
 
   async function renderTrend() {
+    updateQuickButtons('trendQuickRange', trendRange.preset);
     const label = await describeRange(trendRange);
-    $('#trendRangeBtn').innerHTML = `${escapeHtml(label.title)}${label.sub ? `<span class="range-sub">${escapeHtml(label.sub)}</span>` : ''}`;
+    $('#trendRangeSubDisplay').textContent = label.sub || '';
 
     const txns = await getFilteredTransactions(trendRange);
     $('#trendEmpty').hidden = txns.length > 0;
@@ -454,12 +455,20 @@ const Analysis = (function () {
     if (initialized) return;
     initialized = true;
 
-    $$('.quick-range-btn').forEach((btn) => {
+    $$('#statsQuickRange .quick-range-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const preset = btn.dataset.preset;
         if (preset === 'custom') { openRangeSheet('stats', true); return; }
         statsRange = { preset, ...presetRange(preset) };
         await renderStats();
+      });
+    });
+    $$('#trendQuickRange .quick-range-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const preset = btn.dataset.preset;
+        if (preset === 'custom') { openRangeSheet('trend', true); return; }
+        trendRange = { preset, ...presetRange(preset) };
+        await renderTrend();
       });
     });
     $$('.dim-btn').forEach((btn) => {
@@ -476,7 +485,6 @@ const Analysis = (function () {
         await renderTrend();
       });
     });
-    $('#trendRangeBtn').addEventListener('click', () => openRangeSheet('trend', false));
     $('#rangeSheetBackdrop').addEventListener('click', closeRangeSheet);
     $('#rangeConfirmBtn').addEventListener('click', confirmRange);
     $('#analysisDetailBack').addEventListener('click', closeDetail);
