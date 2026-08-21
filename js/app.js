@@ -1,6 +1,6 @@
 // app.js - UI logic for the expense tracker
 
-const APP_VERSION = 'v23';
+const APP_VERSION = 'v24';
 
 const CATEGORY_COLORS = [
   { bg: '#fde2e2', fg: '#8f2020' }, // red
@@ -116,6 +116,14 @@ function initDatePicker() {
   });
 }
 
+function focusAmountKeepHeaderVisible() {
+  $('#amountInput').focus();
+  // On large font scale, the browser's auto-scroll-into-view for the focused
+  // input can push the date row above the fold — scroll the sheet back to
+  // the top right after so the date options stay visible.
+  setTimeout(() => { $('#entrySheet').scrollTop = 0; }, 60);
+}
+
 // ---------- Bottom sheet open/close ----------
 function openSheet(editTxn) {
   $('#sheetConfirmArea').hidden = true;
@@ -155,7 +163,7 @@ function openSheet(editTxn) {
 
   $('#sheetBackdrop').hidden = false;
   $('#entrySheet').hidden = false;
-  if (!editTxn) $('#amountInput').focus();
+  if (!editTxn) focusAmountKeepHeaderVisible();
 }
 
 function closeSheet() {
@@ -293,7 +301,7 @@ async function updateMonthSummary() {
 async function handleSave() {
   const amount = parseFloat($('#amountInput').value);
   if (!amount || amount <= 0) {
-    $('#amountInput').focus();
+    focusAmountKeepHeaderVisible();
     return;
   }
   if (!state.selectedCategoryId) return;
@@ -334,7 +342,7 @@ function continueEntering() {
   $('#amountInput').value = '';
   $('#itemNameInput').value = '';
   $('#noteInput').value = '';
-  $('#amountInput').focus();
+  focusAmountKeepHeaderVisible();
 }
 
 async function handleDelete() {
