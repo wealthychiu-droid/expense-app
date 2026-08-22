@@ -157,6 +157,24 @@ button, input, select {
   border-radius: 999px;
   margin: 8px auto 12px;
 }
+.sheet-close-btn {
+  position: fixed;
+  top: calc(12px + var(--safe-top));
+  right: 16px;
+  z-index: 22;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+.sheet-close-btn:active { background: var(--danger-bg); color: var(--danger); }
 .sheet-header { margin-bottom: 12px; }
 
 /* date chip row */
