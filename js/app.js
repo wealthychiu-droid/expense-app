@@ -1,6 +1,6 @@
 // app.js - UI logic for the expense tracker
 
-const APP_VERSION = 'v25';
+const APP_VERSION = 'v26';
 
 const CATEGORY_COLORS = [
   { bg: '#fde2e2', fg: '#8f2020' }, // red
@@ -1009,6 +1009,16 @@ async function init() {
   await renderHistory();
 
   if (Drive.isConnected()) performSync(true);
+
+  // Safety net: if the app just sits open on one tab with no navigation,
+  // network blip, or gesture to trigger a check, this makes sure it still
+  // catches up with changes made on another device within a bounded time.
+  // Skipped late at night since nobody's actively using it then.
+  setInterval(() => {
+    const hour = new Date().getHours();
+    if (hour >= 22 || hour < 8) return;
+    if (Drive.isConnected() && navigator.onLine) performSync(true);
+  }, 60 * 60 * 1000);
 
   initFabDrag();
   initFontScale();
